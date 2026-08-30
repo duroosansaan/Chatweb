@@ -1,6 +1,5 @@
-import { connectDB } from '../lib/mongodb';
-import Subscriber from '../models/Subscriber';
-
+import { connectDB } from '@/lib/mongodb';
+import Subscriber from '@/models/Subscriber';
 export default async function Dashboard() {
   await connectDB();
   const subscribers = await Subscriber.find({}).sort({ lastInteraction: -1 }).lean();
