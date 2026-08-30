@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { processMessage } from '../../../../logic/flow';
+import { processMessage } from '@/logic/flow';
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const verifyToken = process.env.META_VERIFY_TOKEN;
