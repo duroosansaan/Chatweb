@@ -1,0 +1,2 @@
+time_s,x_m,y_m,angle_deg,vx_ms,vy_ms,speed_ms,omega_rads,ax_ms2,ay_ms2,KE_J,Ug_J,Us_J,TotalE_J,ThermalLoss_J,Fnet_N,Normal_N,Friction_N,DistIncline_m
+0.0000,0.0000,0.0000,0.00,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000

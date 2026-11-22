@@ -1,0 +1,2138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive Physics — Standalone Web Edition</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #ece9d8;
+      color: #111827;
+      user-select: none;
+      font-size: 12px;
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .app-shell { display: flex; flex-direction: column; height: 100vh; width: 100vw; overflow: hidden; }
+
+    /* Top Menu Bar */
+    .menubar {
+      height: 28px;
+      background: #ece9d8;
+      border-bottom: 1px solid #aca899;
+      padding: 0 6px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      position: relative;
+      z-index: 40;
+    }
+    .brand {
+      font-weight: 700;
+      color: #1e3a8a;
+      padding-right: 10px;
+      margin-right: 4px;
+      border-right: 1px solid #cbd5e1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .brand-dot { width: 10px; height: 10px; background: #2563eb; border-radius: 2px; display: inline-block; }
+    .menu-item-wrap { position: relative; }
+    .menu-btn {
+      background: transparent;
+      border: none;
+      padding: 3px 8px;
+      border-radius: 2px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #111827;
+    }
+    .menu-btn:hover { background: #dbeafe; }
+    .menu-btn.open { background: #2563eb; color: #fff; }
+    .menu-dropdown {
+      display: none;
+      position: absolute;
+      left: 0;
+      top: 100%;
+      margin-top: 2px;
+      min-width: 225px;
+      background: #f8fafc;
+      border: 1px solid #94a3b8;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      padding: 4px 0;
+      z-index: 60;
+    }
+    .menu-dropdown.open { display: block; }
+    .dd-item {
+      width: 100%;
+      padding: 5px 12px;
+      background: transparent;
+      border: none;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: #111827;
+    }
+    .dd-item:hover:not(:disabled) { background: #2563eb; color: #fff; }
+    .dd-item:disabled { color: #9ca3af; cursor: default; }
+    .dd-sep { border-top: 1px solid #d1d5db; margin: 4px 0; }
+
+    /* Top Toolbar */
+    .toolbar {
+      height: 36px;
+      background: #f1f5f9;
+      border-bottom: 1px solid #9ca3af;
+      padding: 0 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      overflow-x: auto;
+      z-index: 20;
+    }
+    .tb-btn {
+      height: 26px;
+      min-width: 26px;
+      padding: 0 6px;
+      border: 1px solid transparent;
+      background: transparent;
+      border-radius: 2px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: #1f2937;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .tb-btn:hover:not(:disabled) { background: #e2e8f0; border-color: #cbd5e1; }
+    .tb-btn.active { background: #dbeafe; border-color: #2563eb; color: #1d4ed8; }
+    .tb-btn:disabled { opacity: 0.4; cursor: default; }
+    .tb-sep { width: 1px; height: 20px; background: #cbd5e1; margin: 0 4px; flex-shrink: 0; }
+    .sim-cluster {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #e2e8f0;
+      border: 1px solid #cbd5e1;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .btn-run {
+      height: 26px;
+      padding: 0 12px;
+      border-radius: 2px;
+      border: 1px solid #15803d;
+      background: #16a34a;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .btn-run.running { background: #dc2626; border-color: #991b1b; }
+    .btn-reset {
+      height: 26px;
+      padding: 0 10px;
+      border-radius: 2px;
+      border: 1px solid #94a3b8;
+      background: #fff;
+      color: #1e293b;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .btn-reset:hover { background: #f8fafc; }
+    .preset-select {
+      height: 24px;
+      padding: 0 6px;
+      border: 1px solid #94a3b8;
+      background: #fff;
+      border-radius: 2px;
+      font-size: 12px;
+    }
+
+    /* Main Workspace */
+    .workspace-row { flex: 1; display: flex; min-height: 0; position: relative; }
+
+    /* Left 2-Column Tool Palette */
+    .left-palette {
+      width: 78px;
+      flex-shrink: 0;
+      background: #ece9d8;
+      border-right: 1px solid #9ca3af;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      z-index: 15;
+    }
+    .palette-scroll { padding: 6px; overflow-y: auto; flex: 1; }
+    .palette-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+    .palette-group + .palette-group { margin-top: 6px; padding-top: 6px; border-top: 1px solid #cbd5e1; }
+    .pal-btn {
+      height: 30px;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 2px;
+      cursor: pointer;
+      color: #1f2937;
+    }
+    .pal-btn:hover { background: #e2e8f0; border-color: #94a3b8; }
+    .pal-btn.active { background: #dbeafe; border-color: #2563eb; color: #1d4ed8; box-shadow: inset 0 1px 2px rgba(0,0,0,0.1); }
+    .pal-footer {
+      padding: 6px 4px;
+      border-top: 1px solid #9ca3af;
+      background: #e2e8f0;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: #1e293b;
+    }
+
+    /* Center Stage */
+    .stage-wrap { flex: 1; position: relative; background: #fff; overflow: hidden; min-width: 0; }
+    #simCanvas { position: absolute; display: block; touch-action: none; }
+    .ruler-corner {
+      position: absolute; top: 0; left: 0; width: 22px; height: 22px;
+      background: #e2e8f0; border-right: 1px solid #94a3b8; border-bottom: 1px solid #94a3b8;
+      z-index: 12; display: flex; align-items: center; justify-content: center;
+      font-size: 9px; color: #475569;
+    }
+    .ruler-h {
+      position: absolute; top: 0; left: 22px; right: 0; height: 22px;
+      background: #f1f5f9; border-bottom: 1px solid #94a3b8; overflow: hidden; z-index: 10; pointer-events: none;
+    }
+    .ruler-v {
+      position: absolute; top: 22px; left: 0; bottom: 0; width: 22px;
+      background: #f1f5f9; border-right: 1px solid #94a3b8; overflow: hidden; z-index: 10; pointer-events: none;
+    }
+
+    /* Floating Meters & Sliders */
+    .overlay-layer { position: absolute; inset: 0; pointer-events: none; z-index: 25; overflow: hidden; }
+    .meter-win, .ctrl-win {
+      position: absolute;
+      pointer-events: auto;
+      background: #f8fafc;
+      border: 1px solid #64748b;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.16);
+      border-radius: 2px;
+      font-size: 11px;
+    }
+    .meter-head, .ctrl-head {
+      height: 22px;
+      background: #1e3a8a;
+      color: #fff;
+      padding: 0 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: move;
+    }
+    .ctrl-head { background: #475569; height: 20px; }
+    .win-btn {
+      background: transparent; border: none; color: #fff; cursor: pointer;
+      padding: 1px 4px; border-radius: 2px; font-size: 10px;
+    }
+    .win-btn:hover { background: rgba(255,255,255,0.2); }
+    .meter-body { padding: 6px; background: #fff; }
+
+    /* Right Properties Panel */
+    .props-panel {
+      width: 262px;
+      flex-shrink: 0;
+      background: #f1f5f9;
+      border-left: 1px solid #9ca3af;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      z-index: 15;
+    }
+    .props-header {
+      padding: 8px 10px;
+      background: #e2e8f0;
+      border-bottom: 1px solid #cbd5e1;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .props-body { padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+    .props-sec { border-top: 1px solid #cbd5e1; padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .props-sec-title { font-size: 11px; font-weight: 600; color: #334155; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .field-lbl { display: block; font-size: 10px; color: #64748b; margin-bottom: 2px; }
+    .field-inp {
+      width: 100%;
+      padding: 3px 6px;
+      border: 1px solid #cbd5e1;
+      border-radius: 2px;
+      background: #fff;
+      font-size: 11px;
+    }
+    .check-row { display: flex; align-items: center; gap: 6px; font-size: 11px; cursor: pointer; }
+
+    /* Bottom Tape Player Bar */
+    .tape-bar {
+      height: 32px;
+      background: #ece9d8;
+      border-top: 1px solid #9ca3af;
+      padding: 0 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      z-index: 20;
+    }
+    .tape-controls { display: flex; align-items: center; gap: 6px; }
+    .tape-btn {
+      background: transparent; border: 1px solid transparent; padding: 2px 5px;
+      border-radius: 2px; cursor: pointer; font-size: 11px;
+    }
+    .tape-btn:hover:not(:disabled) { background: #dbeafe; }
+    .tape-btn:disabled { opacity: 0.4; cursor: default; }
+
+    /* Modal Dialog */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      align-items: center;
+      justify-content: center;
+      z-index: 80;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-box {
+      background: #f8fafc;
+      border: 1px solid #64748b;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+      width: 420px;
+      max-width: 94vw;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .modal-head {
+      height: 28px; background: #1e3a8a; color: #fff; padding: 0 10px;
+      display: flex; align-items: center; justify-content: space-between; font-weight: 600;
+    }
+    .modal-content { padding: 14px; display: flex; flex-direction: column; gap: 10px; max-height: 70vh; overflow-y: auto; }
+    .modal-foot { padding: 8px 14px; background: #ece9d8; border-top: 1px solid #cbd5e1; display: flex; justify-content: flex-end; gap: 8px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  <input type="file" id="openFileInput" accept=".json,.ipjson" class="hidden" />
+
+  <!-- Top Menu Bar -->
+  <nav class="menubar" id="menuBar">
+    <div class="brand"><span class="brand-dot"></span><span>Interactive Physics</span></div>
+
+    <div class="menu-item-wrap">
+      <button class="menu-btn" data-menu="file">File</button>
+      <div class="menu-dropdown" id="menu-file">
+        <button class="dd-item" data-act="new"><span>New Workspace</span><span class="mono">Ctrl+N</span></button>
+        <button class="dd-item" data-act="open"><span>Open Simulation...</span><span class="mono">Ctrl+O</span></button>
+        <button class="dd-item" data-act="save"><span>Save Simulation (.ipjson)</span><span class="mono">Ctrl+S</span></button>
+        <div class="dd-sep"></div>
+        <button class="dd-item" data-preset="pendulum">Sample: Double Pendulum</button>
+        <button class="dd-item" data-preset="projectile">Sample: Projectile Motion</button>
+        <button class="dd-item" data-preset="inclined">Sample: Inclined Plane & Friction</button>
+        <button class="dd-item" data-preset="spring">Sample: Harmonic Spring Oscillator</button>
+        <button class="dd-item" data-preset="atwood">Sample: Atwood Pulley Machine</button>
+        <button class="dd-item" data-preset="cradle">Sample: Newton's Cradle</button>
+        <button class="dd-item" data-preset="crank">Sample: Motorized Gear & Slider-Crank</button>
+        <button class="dd-item" data-preset="car">Sample: Car Suspension & Bump</button>
+        <button class="dd-item" data-preset="orbit">Sample: Planetary Orbit</button>
+      </div>
+    </div>
+
+    <div class="menu-item-wrap">
+      <button class="menu-btn" data-menu="edit">Edit</button>
+      <div class="menu-dropdown" id="menu-edit">
+        <button class="dd-item" data-act="undo"><span>Undo</span><span class="mono">Ctrl+Z</span></button>
+        <button class="dd-item" data-act="redo"><span>Redo</span><span class="mono">Ctrl+Y</span></button>
+        <div class="dd-sep"></div>
+        <button class="dd-item" data-act="duplicate"><span>Duplicate Selected</span><span class="mono">Ctrl+D</span></button>
+        <button class="dd-item" data-act="delete"><span>Delete Selected</span><span class="mono">Del</span></button>
+        <button class="dd-item" data-act="selectAll"><span>Select All</span><span class="mono">Ctrl+A</span></button>
+        <button class="dd-item" data-act="clearTracks"><span>Erase All Path Tracks</span></button>
+      </div>
+    </div>
+
+    <div class="menu-item-wrap">
+      <button class="menu-btn" data-menu="world">World</button>
+      <div class="menu-dropdown" id="menu-world">
+        <button class="dd-item" data-dialog="gravity">Gravity...</button>
+        <button class="dd-item" data-dialog="air">Air Resistance...</button>
+        <button class="dd-item" data-act="toggleElectro">Toggle Electrostatics</button>
+        <div class="dd-sep"></div>
+        <button class="dd-item" data-dialog="accuracy">Accuracy & Substeps...</button>
+      </div>
+    </div>
+
+    <div class="menu-item-wrap">
+      <button class="menu-btn" data-menu="view">View</button>
+      <div class="menu-dropdown" id="menu-view">
+        <button class="dd-item" data-act="toggleGrid">Toggle Grid Lines</button>
+        <button class="dd-item" data-act="toggleSnap">Toggle Snap to Grid</button>
+        <button class="dd-item" data-act="toggleRulers">Toggle Rulers</button>
+        <button class="dd-item" data-act="toggleAxes">Toggle Origin Axes</button>
+        <div class="dd-sep"></div>
+        <button class="dd-item" data-act="zoomIn">Zoom In</button>
+        <button class="dd-item" data-act="zoomOut">Zoom Out</button>
+        <button class="dd-item" data-act="zoomReset">View 100% (Reset Camera)</button>
+        <div class="dd-sep"></div>
+        <button class="dd-item" data-act="toggleProps">Toggle Properties Window</button>
+      </div>
+    </div>
+
+    <div class="menu-item-wrap">
+      <button class="menu-btn" data-menu="define">Define</button>
+      <div class="menu-dropdown" id="menu-define">
+        <button class="dd-item" data-act="vecVel">Toggle Velocity Vectors</button>
+        <button class="dd-item" data-act="vecAcc">Toggle Acceleration Vectors</button>
+        <button class="dd-item" data-act="vecForce">Toggle Force Vectors</button>
+        <div class="dd-sep"></div>
+        <button class="dd-item" data-dialog="newControl">New Slider Control...</button>
+      </div>
+    </div>
+
+    <div class="menu-item-wrap">
+      <button class="menu-btn" data-menu="measure">Measure</button>
+      <div class="menu-dropdown" id="menu-measure">
+        <button class="dd-item" data-meter="position">Position (X, Y, θ)</button>
+        <button class="dd-item" data-meter="velocity">Velocity (Vx, Vy, |V|)</button>
+        <button class="dd-item" data-meter="acceleration">Acceleration (Ax, Ay, |A|)</button>
+        <button class="dd-item" data-meter="force">Total Force (Fx, Fy, |F|)</button>
+        <button class="dd-item" data-meter="momentum">Momentum (Px, Py, |P|)</button>
+        <button class="dd-item" data-meter="energy">Kinetic & Potential Energy</button>
+      </div>
+    </div>
+
+    <div class="menu-item-wrap">
+      <button class="menu-btn" data-menu="object">Object</button>
+      <div class="menu-dropdown" id="menu-object">
+        <button class="dd-item" data-act="toggleAnchor">Anchor / Unanchor Selected</button>
+        <button class="dd-item" data-act="toggleCollide">Toggle Collidable</button>
+        <button class="dd-item" data-act="meshGears">Mesh Touching Gears</button>
+      </div>
+    </div>
+
+    <div class="menu-item-wrap">
+      <button class="menu-btn" data-menu="window">Window</button>
+      <div class="menu-dropdown" id="menu-window">
+        <button class="dd-item" data-act="tileMeters">Tile Meters</button>
+        <button class="dd-item" data-act="clearMeters">Close All Meters</button>
+      </div>
+    </div>
+
+    <div class="menu-item-wrap">
+      <button class="menu-btn" data-menu="help">Help</button>
+      <div class="menu-dropdown" id="menu-help">
+        <button class="dd-item" data-dialog="help">Tool Guide & Shortcuts...</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Top Toolbar -->
+  <div class="toolbar">
+    <button class="tb-btn" data-act="new" title="New Workspace">New</button>
+    <button class="tb-btn" data-act="open" title="Open Simulation">Open</button>
+    <button class="tb-btn" data-act="save" title="Save Simulation">Save</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" data-act="undo" title="Undo (Ctrl+Z)">Undo</button>
+    <button class="tb-btn" data-act="redo" title="Redo (Ctrl+Y)">Redo</button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" data-act="zoomIn" title="Zoom In">+</button>
+    <button class="tb-btn" data-act="zoomOut" title="Zoom Out">-</button>
+    <button class="tb-btn mono" data-act="zoomReset" title="Reset View">1:1</button>
+    <button class="tb-btn active" id="btnGrid" data-act="toggleGrid" title="Toggle Grid">Grid</button>
+    <button class="tb-btn" id="btnSnap" data-act="toggleSnap" title="Snap to Grid">Snap</button>
+    <div class="tb-sep"></div>
+
+    <div class="sim-cluster">
+      <button class="btn-run" id="btnRun">▶ Run</button>
+      <button class="btn-reset" id="btnReset">⏮ Reset</button>
+      <button class="tb-btn" id="btnStepBack" title="Step Back">◀|</button>
+      <button class="tb-btn" id="btnStepFwd" title="Step Forward">|▶</button>
+    </div>
+
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="btnVectors" data-act="toggleVectors" title="Toggle Velocity & Force Vectors">Vectors</button>
+    <label style="font-size:11px;color:#475569;margin-left:4px;">Experiments:</label>
+    <select class="preset-select" id="presetSelect">
+      <option value="pendulum">Simple & Double Pendulum</option>
+      <option value="projectile">Projectile Motion Lab</option>
+      <option value="inclined">Inclined Plane & Friction</option>
+      <option value="spring">Harmonic Spring Oscillator</option>
+      <option value="atwood">Atwood Machine (Pulley & Rope)</option>
+      <option value="cradle">Newton's Cradle</option>
+      <option value="crank">Motorized Gear & Slider-Crank</option>
+      <option value="car">Suspension Vehicle & Bump</option>
+      <option value="orbit">Planetary Orbit</option>
+      <option value="blank">Blank Workspace</option>
+    </select>
+    <button class="tb-btn" style="margin-left:auto;" data-act="toggleProps">Properties</button>
+  </div>
+
+  <!-- Middle Workspace -->
+  <div class="workspace-row">
+    <!-- Left 2-Column Tool Palette -->
+    <aside class="left-palette" id="leftPalette">
+      <div class="palette-scroll" id="paletteContainer"></div>
+      <div class="pal-footer" id="activeToolLabel">Select</div>
+    </aside>
+
+    <!-- Center Stage -->
+    <main class="stage-wrap" id="stageWrap">
+      <div class="ruler-corner mono" id="rulerCorner">m</div>
+      <div class="ruler-h" id="rulerH"></div>
+      <div class="ruler-v" id="rulerV"></div>
+      <canvas id="simCanvas"></canvas>
+      <div class="overlay-layer" id="overlayLayer"></div>
+    </main>
+
+    <!-- Right Properties Panel -->
+    <aside class="props-panel" id="propsPanel">
+      <div class="props-header">
+        <span id="propsTitle">Workspace Properties</span>
+        <div style="display:flex;gap:4px;">
+          <button class="tb-btn" id="btnDupSel" title="Duplicate">Copy</button>
+          <button class="tb-btn" id="btnDelSel" style="color:#dc2626;" title="Delete">Del</button>
+        </div>
+      </div>
+      <div class="props-body" id="propsBody"></div>
+    </aside>
+  </div>
+
+  <!-- Bottom Tape Player Bar -->
+  <footer class="tape-bar">
+    <div class="tape-controls">
+      <span style="font-weight:600;color:#475569;font-size:11px;">Tape:</span>
+      <button class="tape-btn" id="tapeStart">|◀</button>
+      <button class="tape-btn" id="tapeBack">◀</button>
+      <input type="range" id="tapeScrubber" min="0" max="0" value="0" style="width:180px;accent-color:#2563eb;" />
+      <button class="tape-btn" id="tapeFwd">▶</button>
+      <button class="tape-btn" id="tapeEnd">▶|</button>
+    </div>
+    <div class="mono" style="display:flex;gap:14px;font-size:11px;">
+      <span>Time: <strong id="lblTime">0.00 s</strong></span>
+      <span>Frame: <strong id="lblFrame">0</strong></span>
+      <span>Speed:
+        <select id="speedSelect" class="mono" style="font-size:11px;border:1px solid #94a3b8;background:#fff;">
+          <option value="0.25">0.25x</option>
+          <option value="0.5">0.5x</option>
+          <option value="1" selected>1x</option>
+          <option value="2">2x</option>
+        </select>
+      </span>
+    </div>
+    <div class="mono" id="lblCoords" style="font-size:11px;color:#334155;">X: 0.00 m · Y: 0.00 m</div>
+  </footer>
+</div>
+
+<!-- Modal Dialog -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span id="modalTitle">Settings</span>
+      <button class="win-btn" id="modalCloseBtn">✕</button>
+    </div>
+    <div class="modal-content" id="modalContent"></div>
+    <div class="modal-foot">
+      <button class="btn-reset" id="modalOkBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // =========================================================================
+  // 1. VECTOR MATH & GEOMETRY
+  // =========================================================================
+  const vAdd = (a, b) => ({ x: a.x + b.x, y: a.y + b.y });
+  const vSub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
+  const vScale = (a, s) => ({ x: a.x * s, y: a.y * s });
+  const vDot = (a, b) => a.x * b.x + a.y * b.y;
+  const vCross = (a, b) => a.x * b.y - a.y * b.x;
+  const vCrossSV = (s, v) => ({ x: -s * v.y, y: s * v.x });
+  const vLen = (a) => Math.hypot(a.x, a.y);
+  const vNorm = (a) => { const l = Math.hypot(a.x, a.y); return l < 1e-9 ? { x: 1, y: 0 } : { x: a.x / l, y: a.y / l }; };
+  const vPerp = (a) => ({ x: -a.y, y: a.x });
+  const vRotate = (v, ang) => { const c = Math.cos(ang), s = Math.sin(ang); return { x: v.x * c - v.y * s, y: v.x * s + v.y * c }; };
+  const clamp = (v, mn, mx) => Math.max(mn, Math.min(mx, v));
+  const localToWorld = (b, l) => vAdd({ x: b.x, y: b.y }, vRotate(l, b.angle));
+  const worldToLocal = (b, w) => vRotate({ x: w.x - b.x, y: w.y - b.y }, -b.angle);
+
+  function getRectVerts(w, h) {
+    const hw = w / 2, hh = h / 2;
+    return [{ x: -hw, y: -hh }, { x: hw, y: -hh }, { x: hw, y: hh }, { x: -hw, y: hh }];
+  }
+
+  function getWorldVertices(b) {
+    const verts = b.shape === 'rect' ? getRectVerts(b.width, b.height) : b.vertices;
+    const c = Math.cos(b.angle), s = Math.sin(b.angle);
+    return verts.map(v => ({ x: b.x + v.x * c - v.y * s, y: b.y + v.x * s + v.y * c }));
+  }
+
+  function computePolyProps(rawVerts, density) {
+    if (rawVerts.length < 3) return { vertices: rawVerts, area: 0.1, mass: 0.2, inertia: 0.05 };
+    let area2 = 0, cx = 0, cy = 0;
+    const n = rawVerts.length;
+    for (let i = 0; i < n; i++) {
+      const p0 = rawVerts[i], p1 = rawVerts[(i + 1) % n];
+      const cr = p0.x * p1.y - p1.x * p0.y;
+      area2 += cr; cx += (p0.x + p1.x) * cr; cy += (p0.y + p1.y) * cr;
+    }
+    let verts = rawVerts.slice();
+    if (area2 < 0) { verts.reverse(); area2 = -area2; cx = -cx; cy = -cy; }
+    const area = Math.max(area2 * 0.5, 1e-4);
+    const cent = { x: cx / (6 * area), y: cy / (6 * area) };
+    const shifted = verts.map(v => ({ x: v.x - cent.x, y: v.y - cent.y }));
+    let inum = 0, iden = 0;
+    for (let i = 0; i < shifted.length; i++) {
+      const p0 = shifted[i], p1 = shifted[(i + 1) % shifted.length];
+      const cr = Math.abs(vCross(p0, p1));
+      inum += cr * (vDot(p0, p0) + vDot(p0, p1) + vDot(p1, p1));
+      iden += cr;
+    }
+    const mass = Math.max(area * density, 0.05);
+    const inertia = iden > 1e-8 ? Math.max((mass / 6) * (inum / iden), 0.005) : mass * 0.1;
+    return { vertices: shifted, area, mass, inertia };
+  }
+
+  function recalcBody(b) {
+    if (b.isStatic) { b.invMass = 0; b.invInertia = 0; return; }
+    b.mass = Math.max(b.mass, 0.05);
+    b.invMass = 1 / b.mass;
+    if (b.shape === 'circle' || b.shape === 'gear' || b.shape === 'pulley') {
+      b.inertia = 0.5 * b.mass * b.radius * b.radius;
+    } else if (b.shape === 'rect') {
+      b.inertia = (b.mass * (b.width * b.width + b.height * b.height)) / 12;
+    } else if (b.shape === 'point') {
+      b.inertia = 0.02 * b.mass;
+    } else {
+      const p = computePolyProps(b.vertices, b.density || 2);
+      b.inertia = Math.max(p.inertia * (b.mass / p.mass), 0.005);
+    }
+    b.invInertia = 1 / b.inertia;
+  }
+
+  function distToSegment(p, a, b) {
+    const ab = vSub(b, a);
+    const l2 = vDot(ab, ab);
+    if (l2 < 1e-12) return vLen(vSub(p, a));
+    const t = clamp(vDot(vSub(p, a), ab) / l2, 0, 1);
+    return vLen(vSub(p, { x: a.x + t * ab.x, y: a.y + t * ab.y }));
+  }
+
+  function pointInBody(b, pt, tol = 0) {
+    if (b.shape === 'circle' || b.shape === 'gear' || b.shape === 'pulley' || b.shape === 'point') {
+      const r = (b.shape === 'point' ? 0.18 : b.radius) + tol;
+      return Math.hypot(pt.x - b.x, pt.y - b.y) <= r;
+    }
+    const local = worldToLocal(b, pt);
+    if (b.shape === 'rect') {
+      return Math.abs(local.x) <= b.width / 2 + tol && Math.abs(local.y) <= b.height / 2 + tol;
+    }
+    const v = b.vertices;
+    let inside = false;
+    for (let i = 0, j = v.length - 1; i < v.length; j = i++) {
+      if ((v[i].y > local.y) !== (v[j].y > local.y) &&
+          local.x < ((v[j].x - v[i].x) * (local.y - v[i].y)) / (v[j].y - v[i].y + 1e-12) + v[i].x) {
+        inside = !inside;
+      }
+    }
+    if (inside) return true;
+    if (tol > 0) {
+      for (let i = 0; i < v.length; i++) {
+        if (distToSegment(local, v[i], v[(i + 1) % v.length]) <= tol) return true;
+      }
+    }
+    return false;
+  }
+
+  // =========================================================================
+  // 2. 2D COLLISION DETECTION (SAT + CLIPPING MANIFOLDS)
+  // =========================================================================
+  const isCircLike = (b) => b.shape === 'circle' || b.shape === 'gear' || b.shape === 'pulley';
+
+  function detectCollision(a, b) {
+    if (!a.collidable || !b.collidable) return null;
+    if (a.isStatic && b.isStatic) return null;
+    if (a.shape === 'point' || b.shape === 'point') return null;
+    if (a.collisionGroup !== 0 && b.collisionGroup !== 0 && a.collisionGroup !== b.collisionGroup) return null;
+
+    const ac = isCircLike(a), bc = isCircLike(b);
+    if (ac && bc) {
+      const diff = { x: b.x - a.x, y: b.y - a.y };
+      const rSum = a.radius + b.radius;
+      const d2 = diff.x * diff.x + diff.y * diff.y;
+      if (d2 >= rSum * rSum) return null;
+      const d = Math.sqrt(d2);
+      const n = d > 1e-6 ? { x: diff.x / d, y: diff.y / d } : { x: 0, y: 1 };
+      const pen = rSum - d;
+      return {
+        bodyA: a, bodyB: b, normal: n,
+        contacts: [{ position: { x: a.x + n.x * (a.radius - pen * 0.5), y: a.y + n.y * (a.radius - pen * 0.5) }, penetration: pen, jn: 0, jt: 0 }]
+      };
+    }
+    if (ac && !bc) return collideCircPoly(a, b);
+    if (!ac && bc) {
+      const m = collideCircPoly(b, a);
+      if (!m) return null;
+      return { bodyA: a, bodyB: b, normal: { x: -m.normal.x, y: -m.normal.y }, contacts: m.contacts };
+    }
+    return collidePolys(a, b);
+  }
+
+  function collideCircPoly(circ, poly) {
+    const verts = getWorldVertices(poly);
+    if (verts.length < 3) return null;
+    const cPos = { x: circ.x, y: circ.y };
+    let minSep = -Infinity, bestIdx = 0;
+    for (let i = 0; i < verts.length; i++) {
+      const v1 = verts[i], v2 = verts[(i + 1) % verts.length];
+      const e = vSub(v2, v1);
+      const n = vNorm({ x: e.y, y: -e.x });
+      const sep = vDot(n, vSub(cPos, v1));
+      if (sep > circ.radius) return null;
+      if (sep > minSep) { minSep = sep; bestIdx = i; }
+    }
+    const v1 = verts[bestIdx], v2 = verts[(bestIdx + 1) % verts.length];
+    const e = vSub(v2, v1);
+    if (minSep < 1e-6) {
+      const outN = vNorm({ x: e.y, y: -e.x });
+      const n = { x: -outN.x, y: -outN.y };
+      return { bodyA: circ, bodyB: poly, normal: n, contacts: [{ position: vAdd(cPos, vScale(n, circ.radius * 0.5)), penetration: circ.radius - minSep, jn: 0, jt: 0 }] };
+    }
+    const el2 = vDot(e, e);
+    const t = el2 > 1e-9 ? clamp(vDot(vSub(cPos, v1), e) / el2, 0, 1) : 0;
+    const closest = { x: v1.x + t * e.x, y: v1.y + t * e.y };
+    const toC = vSub(closest, cPos);
+    const d = vLen(toC);
+    if (d > circ.radius) return null;
+    const n = d > 1e-6 ? vScale(toC, 1 / d) : vNorm({ x: -e.y, y: e.x });
+    return { bodyA: circ, bodyB: poly, normal: n, contacts: [{ position: closest, penetration: circ.radius - d, jn: 0, jt: 0 }] };
+  }
+
+  function getNormals(verts) {
+    return verts.map((p1, i) => {
+      const p2 = verts[(i + 1) % verts.length];
+      const e = vSub(p2, p1);
+      return vNorm({ x: e.y, y: -e.x });
+    });
+  }
+
+  function findMaxSep(vA, nA, vB) {
+    let best = -Infinity, idx = 0;
+    for (let i = 0; i < vA.length; i++) {
+      let minP = Infinity;
+      for (let j = 0; j < vB.length; j++) {
+        const p = vDot(nA[i], vSub(vB[j], vA[i]));
+        if (p < minP) minP = p;
+      }
+      if (minP > best) { best = minP; idx = i; }
+    }
+    return { sep: best, idx };
+  }
+
+  function clipSeg(vIn, n, off) {
+    const out = [];
+    const d0 = vDot(n, vIn[0]) - off, d1 = vDot(n, vIn[1]) - off;
+    if (d0 >= 0) out.push(vIn[0]);
+    if (d1 >= 0) out.push(vIn[1]);
+    if (d0 * d1 < 0) {
+      const t = d0 / (d0 - d1);
+      out.push({ x: vIn[0].x + t * (vIn[1].x - vIn[0].x), y: vIn[0].y + t * (vIn[1].y - vIn[0].y) });
+    }
+    return out;
+  }
+
+  function collidePolys(a, b) {
+    const vA = getWorldVertices(a), vB = getWorldVertices(b);
+    if (vA.length < 3 || vB.length < 3) return null;
+    const nA = getNormals(vA), nB = getNormals(vB);
+    const rA = findMaxSep(vA, nA, vB); if (rA.sep > 0) return null;
+    const rB = findMaxSep(vB, nB, vA); if (rB.sep > 0) return null;
+
+    let refV = vA, refN = nA, incV = vB, incN = nB, idx = rA.idx, flip = false;
+    if (rB.sep > rA.sep + 0.002) {
+      refV = vB; refN = nB; incV = vA; incN = nA; idx = rB.idx; flip = true;
+    }
+    const rv1 = refV[idx], rv2 = refV[(idx + 1) % refV.length], rNorm = refN[idx];
+    const eDir = vNorm(vSub(rv2, rv1));
+    let minDot = Infinity, incIdx = 0;
+    for (let i = 0; i < incN.length; i++) {
+      const d = vDot(rNorm, incN[i]);
+      if (d < minDot) { minDot = d; incIdx = i; }
+    }
+    let clip = clipSeg([incV[incIdx], incV[(incIdx + 1) % incV.length]], eDir, vDot(eDir, rv1));
+    if (clip.length < 2) return null;
+    const negE = { x: -eDir.x, y: -eDir.y };
+    clip = clipSeg(clip, negE, vDot(negE, rv2));
+    if (clip.length < 2) return null;
+
+    const refOff = vDot(rNorm, rv1);
+    const contacts = [];
+    for (const pt of clip) {
+      const sep = vDot(rNorm, pt) - refOff;
+      if (sep <= 0.001) contacts.push({ position: pt, penetration: Math.max(0, -sep), jn: 0, jt: 0 });
+    }
+    if (!contacts.length) return null;
+    return { bodyA: a, bodyB: b, normal: flip ? { x: -rNorm.x, y: -rNorm.y } : rNorm, contacts };
+  }
+
+  // =========================================================================
+  // 3. PHYSICS ENGINE (SEQUENTIAL IMPULSE SOLVER)
+  // =========================================================================
+  function applyImpulse(a, b, imp, rA, rB) {
+    if (a && !a.isStatic) {
+      a.vx -= imp.x * a.invMass; a.vy -= imp.y * a.invMass;
+      a.omega -= vCross(rA, imp) * a.invInertia;
+    }
+    if (b && !b.isStatic) {
+      b.vx += imp.x * b.invMass; b.vy += imp.y * b.invMass;
+      b.omega += vCross(rB, imp) * b.invInertia;
+    }
+  }
+
+  function stepPhysics(state, dragSpring) {
+    const { bodies, constraints, world } = state;
+    const substeps = Math.max(1, world.substeps || 6);
+    const fullDt = world.dt || 1 / 60;
+    const dt = fullDt / substeps;
+    const invFullDt = 1 / fullDt;
+    const bMap = new Map(bodies.map(b => [b.id, b]));
+    const preV = new Map();
+    for (const b of bodies) {
+      recalcBody(b);
+      preV.set(b.id, { vx: b.vx, vy: b.vy });
+    }
+
+    for (let sub = 0; sub < substeps; sub++) {
+      const subT = state.time + sub * dt;
+      for (const b of bodies) { b.fx = 0; b.fy = 0; b.torque = 0; }
+
+      for (let i = 0; i < bodies.length; i++) {
+        const b = bodies[i];
+        if (b.isStatic) continue;
+        if (world.gravityMode === 'vertical') { b.fx += b.mass * world.gx; b.fy += b.mass * world.gy; }
+        if (world.airResistance > 0) {
+          const sp = Math.hypot(b.vx, b.vy);
+          const dr = world.airResistance * (1 + 0.08 * sp);
+          b.fx -= dr * b.vx; b.fy -= dr * b.vy; b.torque -= world.airResistance * 0.25 * b.omega;
+        }
+        if (b.thruster && b.thruster.enabled) {
+          const wf = vRotate({ x: b.thruster.fx, y: b.thruster.fy }, b.angle);
+          const r = vRotate({ x: b.thruster.localX, y: b.thruster.localY }, b.angle);
+          b.fx += wf.x; b.fy += wf.y; b.torque += vCross(r, wf);
+        }
+        if (world.gravityMode === 'planetary' || world.electrostaticsEnabled) {
+          for (let j = i + 1; j < bodies.length; j++) {
+            const o = bodies[j];
+            const dx = o.x - b.x, dy = o.y - b.y;
+            const d2 = Math.max(dx * dx + dy * dy, 0.04);
+            const d = Math.sqrt(d2);
+            const dir = { x: dx / d, y: dy / d };
+            if (world.gravityMode === 'planetary') {
+              const fm = (world.gravityG * b.mass * o.mass) / d2;
+              b.fx += dir.x * fm; b.fy += dir.y * fm;
+              if (!o.isStatic) { o.fx -= dir.x * fm; o.fy -= dir.y * fm; }
+            }
+            if (world.electrostaticsEnabled && b.charge && o.charge) {
+              const fm = -(world.electrostaticK * b.charge * o.charge) / d2;
+              b.fx += dir.x * fm; b.fy += dir.y * fm;
+              if (!o.isStatic) { o.fx -= dir.x * fm; o.fy -= dir.y * fm; }
+            }
+          }
+        }
+      }
+
+      for (const c of constraints) {
+        if (!c.enabled) continue;
+        const bA = c.bodyAId ? bMap.get(c.bodyAId) : null;
+        const bB = c.bodyBId ? bMap.get(c.bodyBId) : null;
+        if (c.kind === 'force' && bA && !bA.isStatic) {
+          const pA = localToWorld(bA, c.localA), rA = vSub(pA, bA);
+          const rawF = { x: c.forceX || 0, y: c.forceY || 0 };
+          const f = c.forceFollowBody ? vRotate(rawF, bA.angle) : rawF;
+          bA.fx += f.x; bA.fy += f.y; bA.torque += vCross(rA, f);
+        } else if (c.kind === 'torque' && bA && !bA.isStatic) {
+          bA.torque += c.torqueValue || 0;
+        } else if (c.kind === 'spring' || c.kind === 'damper') {
+          const pA = bA ? localToWorld(bA, c.localA) : c.localA;
+          const pB = bB ? localToWorld(bB, c.localB) : c.localB;
+          const delta = vSub(pB, pA), len = vLen(delta);
+          const dir = len > 1e-6 ? vScale(delta, 1 / len) : { x: 0, y: 1 };
+          const rA = bA ? vSub(pA, bA) : { x: 0, y: 0 };
+          const rB = bB ? vSub(pB, bB) : { x: 0, y: 0 };
+          const vA = bA ? vAdd({ x: bA.vx, y: bA.vy }, vCrossSV(bA.omega, rA)) : { x: 0, y: 0 };
+          const vB = bB ? vAdd({ x: bB.vx, y: bB.vy }, vCrossSV(bB.omega, rB)) : { x: 0, y: 0 };
+          const vAlong = vDot(vSub(vB, vA), dir);
+          const fm = c.kind === 'spring'
+            ? (c.stiffness ?? 50) * (len - (c.restLength ?? 1.5)) + (c.damping ?? 0.5) * vAlong
+            : (c.damping ?? 8) * vAlong;
+          const fA = vScale(dir, fm);
+          if (bA && !bA.isStatic) { bA.fx += fA.x; bA.fy += fA.y; bA.torque += vCross(rA, fA); }
+          if (bB && !bB.isStatic) { bB.fx -= fA.x; bB.fy -= fA.y; bB.torque -= vCross(rB, fA); }
+        }
+      }
+
+      if (dragSpring) {
+        const gb = bMap.get(dragSpring.bodyId);
+        if (gb && !gb.isStatic) {
+          const wp = localToWorld(gb, dragSpring.localPoint), r = vSub(wp, gb);
+          const vp = vAdd({ x: gb.vx, y: gb.vy }, vCrossSV(gb.omega, r));
+          const diff = vSub(dragSpring.targetWorld, wp);
+          const kG = Math.max(80, gb.mass * 120), cG = Math.max(8, gb.mass * 16);
+          const f = { x: kG * diff.x - cG * vp.x, y: kG * diff.y - cG * vp.y };
+          gb.fx += f.x; gb.fy += f.y; gb.torque += vCross(r, f);
+        }
+      }
+
+      for (const b of bodies) {
+        if (b.isStatic) { b.vx = 0; b.vy = 0; b.omega = 0; continue; }
+        b.vx += b.fx * b.invMass * dt;
+        b.vy += b.fy * b.invMass * dt;
+        b.omega += b.torque * b.invInertia * dt;
+      }
+
+      const manifolds = [];
+      for (let i = 0; i < bodies.length; i++) {
+        for (let j = i + 1; j < bodies.length; j++) {
+          const m = detectCollision(bodies[i], bodies[j]);
+          if (m) manifolds.push(m);
+        }
+      }
+
+      const iters = Math.max(4, world.solverIterations || 10);
+      const invDt = 1 / dt;
+      for (let iter = 0; iter < iters; iter++) {
+        for (const c of constraints) {
+          if (!c.enabled) continue;
+          const bA = c.bodyAId ? bMap.get(c.bodyAId) : null;
+          const bB = c.bodyBId ? bMap.get(c.bodyBId) : null;
+          if (c.kind === 'pin' || c.kind === 'weld') {
+            solvePin(bA, bB, c.localA, c.localB, invDt);
+            if (c.kind === 'weld') solveAngLock(bA, bB, c.referenceAngle || 0, invDt);
+          } else if (c.kind === 'slot') {
+            solveSlot(bA, bB, c.localA, c.localB, c.slotAngle || 0, !!c.slotKeyed, c.referenceAngle || 0, invDt);
+          } else if (c.kind === 'rod') {
+            solveDist(bA, bB, c.localA, c.localB, c.restLength || 1, false, invDt);
+          } else if (c.kind === 'rope') {
+            const pul = c.pulleyBodyId ? bMap.get(c.pulleyBodyId) : null;
+            solveRope(bA, bB, c.localA, c.localB, c.maxLength ?? c.restLength ?? 2, pul, invDt);
+          } else if (c.kind === 'actuator') {
+            const tgt = c.actuatorMode === 'velocity'
+              ? Math.max(0.2, (c.restLength || 1.5) + (c.actuatorVelocity || 0.4) * subT)
+              : Math.max(0.2, (c.restLength || 1.5) + (c.actuatorAmplitude || 0.5) * Math.sin((c.actuatorFrequency || 3) * subT));
+            solveDist(bA, bB, c.localA, c.localB, tgt, false, invDt);
+          } else if (c.kind === 'motor' && bA && !bA.isStatic) {
+            const k = bA.invInertia + (bB ? bB.invInertia : 0);
+            if (k > 1e-9) {
+              const rel = bA.omega - (bB ? bB.omega : 0);
+              const maxImp = Math.abs(c.motorMaxTorque ?? 80) * dt;
+              const j = clamp(((c.motorTargetOmega ?? 3) - rel) / k, -maxImp, maxImp);
+              bA.omega += j * bA.invInertia;
+              if (bB && !bB.isStatic) bB.omega -= j * bB.invInertia;
+            }
+          } else if (c.kind === 'gearMesh' && bA && bB) {
+            const rA = Math.max(0.1, bA.radius), rB = Math.max(0.1, bB.radius);
+            const k = bA.invInertia * rA * rA + bB.invInertia * rB * rB;
+            if (k > 1e-9) {
+              const lam = -(rA * bA.omega + rB * bB.omega) / k;
+              if (!bA.isStatic) bA.omega += lam * rA * bA.invInertia;
+              if (!bB.isStatic) bB.omega += lam * rB * bB.invInertia;
+            }
+          }
+        }
+
+        for (const m of manifolds) {
+          const a = m.bodyA, b = m.bodyB, n = m.normal, t = vPerp(n);
+          const e = Math.min(a.restitution, b.restitution);
+          const muS = Math.sqrt(a.staticFriction * b.staticFriction);
+          const muK = Math.sqrt(a.kineticFriction * b.kineticFriction);
+          const cnt = m.contacts.length;
+          for (const cp of m.contacts) {
+            const rA = vSub(cp.position, a), rB = vSub(cp.position, b);
+            const relV = vSub(vAdd({ x: b.vx, y: b.vy }, vCrossSV(b.omega, rB)), vAdd({ x: a.vx, y: a.vy }, vCrossSV(a.omega, rA)));
+            const vn = vDot(relV, n);
+            const rACn = vCross(rA, n), rBCn = vCross(rB, n);
+            const kN = a.invMass + b.invMass + rACn * rACn * a.invInertia + rBCn * rBCn * b.invInertia;
+            const effN = kN > 1e-9 ? 1 / kN : 0;
+            const bias = 0.22 * invDt * Math.max(0, cp.penetration - 0.004);
+            const bounce = vn < -0.6 ? e * vn : 0;
+            let jn = (-(vn + bounce) + bias) * effN / cnt;
+            const oldJn = cp.jn; cp.jn = Math.max(0, oldJn + jn);
+            applyImpulse(a, b, vScale(n, cp.jn - oldJn), rA, rB);
+
+            const relV2 = vSub(vAdd({ x: b.vx, y: b.vy }, vCrossSV(b.omega, rB)), vAdd({ x: a.vx, y: a.vy }, vCrossSV(a.omega, rA)));
+            const vt = vDot(relV2, t);
+            const rACt = vCross(rA, t), rBCt = vCross(rB, t);
+            const kT = a.invMass + b.invMass + rACt * rACt * a.invInertia + rBCt * rBCt * b.invInertia;
+            const effT = kT > 1e-9 ? 1 / kT : 0;
+            const jt = (-vt * effT) / cnt;
+            const oldJt = cp.jt;
+            let nJt = oldJt + jt;
+            if (Math.abs(nJt) > muS * cp.jn) nJt = clamp(nJt, -muK * cp.jn, muK * cp.jn);
+            cp.jt = nJt;
+            applyImpulse(a, b, vScale(t, nJt - oldJt), rA, rB);
+          }
+        }
+      }
+
+      for (const b of bodies) {
+        if (b.isStatic) continue;
+        b.x += b.vx * dt; b.y += b.vy * dt; b.angle += b.omega * dt;
+      }
+    }
+
+    state.time += fullDt;
+    state.frame += 1;
+    for (const b of bodies) {
+      const pv = preV.get(b.id);
+      b.ax = b.isStatic ? 0 : (b.vx - pv.vx) * invFullDt;
+      b.ay = b.isStatic ? 0 : (b.vy - pv.vy) * invFullDt;
+      if (b.trackCOM && state.frame % 2 === 0) {
+        b.tracePoints.push({ x: b.x, y: b.y });
+        if (b.tracePoints.length > 500) b.tracePoints.shift();
+      }
+    }
+  }
+
+  function solvePin(bA, bB, localA, localB, invDt) {
+    const pA = bA ? localToWorld(bA, localA) : localA;
+    const pB = bB ? localToWorld(bB, localB) : localB;
+    const rA = bA ? vSub(pA, bA) : { x: 0, y: 0 };
+    const rB = bB ? vSub(pB, bB) : { x: 0, y: 0 };
+    const imA = bA ? bA.invMass : 0, imB = bB ? bB.invMass : 0;
+    const iiA = bA ? bA.invInertia : 0, iiB = bB ? bB.invInertia : 0;
+    if (imA + imB + iiA + iiB === 0) return;
+    const vA = bA ? vAdd({ x: bA.vx, y: bA.vy }, vCrossSV(bA.omega, rA)) : { x: 0, y: 0 };
+    const vB = bB ? vAdd({ x: bB.vx, y: bB.vy }, vCrossSV(bB.omega, rB)) : { x: 0, y: 0 };
+    const Cdot = vAdd(vSub(vB, vA), vScale(vSub(pB, pA), 0.25 * invDt));
+    const k11 = imA + imB + iiA * rA.y * rA.y + iiB * rB.y * rB.y;
+    const k12 = -iiA * rA.x * rA.y - iiB * rB.x * rB.y;
+    const k22 = imA + imB + iiA * rA.x * rA.x + iiB * rB.x * rB.x;
+    const det = k11 * k22 - k12 * k12;
+    if (Math.abs(det) < 1e-9) return;
+    applyImpulse(bA, bB, { x: -(k22 * Cdot.x - k12 * Cdot.y) / det, y: -(-k12 * Cdot.x + k11 * Cdot.y) / det }, rA, rB);
+  }
+
+  function solveAngLock(bA, bB, refAng, invDt) {
+    const k = (bA ? bA.invInertia : 0) + (bB ? bB.invInertia : 0);
+    if (k < 1e-9) return;
+    let err = (bB ? bB.angle : 0) - (bA ? bA.angle : 0) - refAng;
+    while (err > Math.PI) err -= 2 * Math.PI;
+    while (err < -Math.PI) err += 2 * Math.PI;
+    const imp = -((bB ? bB.omega : 0) - (bA ? bA.omega : 0) + 0.25 * invDt * err) / k;
+    if (bA && !bA.isStatic) bA.omega -= imp * bA.invInertia;
+    if (bB && !bB.isStatic) bB.omega += imp * bB.invInertia;
+  }
+
+  function solveSlot(bA, bB, localA, localB, slotAngle, keyed, refAng, invDt) {
+    if (!bA || bA.isStatic) return;
+    const pA = localToWorld(bA, localA), pB = bB ? localToWorld(bB, localB) : localB;
+    const ang = (bB ? bB.angle : 0) + slotAngle;
+    const perp = { x: -Math.sin(ang), y: Math.cos(ang) };
+    const rA = vSub(pA, bA), rB = bB ? vSub(pB, bB) : { x: 0, y: 0 };
+    const vA = vAdd({ x: bA.vx, y: bA.vy }, vCrossSV(bA.omega, rA));
+    const vB = bB ? vAdd({ x: bB.vx, y: bB.vy }, vCrossSV(bB.omega, rB)) : { x: 0, y: 0 };
+    const k = bA.invMass + (bB ? bB.invMass : 0) + Math.pow(vCross(rA, perp), 2) * bA.invInertia + Math.pow(vCross(rB, perp), 2) * (bB ? bB.invInertia : 0);
+    if (k < 1e-9) return;
+    const j = -(vDot(vSub(vA, vB), perp) + 0.25 * invDt * vDot(vSub(pA, pB), perp)) / k;
+    const imp = vScale(perp, j);
+    bA.vx += imp.x * bA.invMass; bA.vy += imp.y * bA.invMass; bA.omega += vCross(rA, imp) * bA.invInertia;
+    if (bB && !bB.isStatic) { bB.vx -= imp.x * bB.invMass; bB.vy -= imp.y * bB.invMass; bB.omega -= vCross(rB, imp) * bB.invInertia; }
+    if (keyed) solveAngLock(bA, bB, refAng, invDt);
+  }
+
+  function solveDist(bA, bB, localA, localB, tgtL, tensionOnly, invDt) {
+    const pA = bA ? localToWorld(bA, localA) : localA;
+    const pB = bB ? localToWorld(bB, localB) : localB;
+    const delta = vSub(pB, pA), d = vLen(delta);
+    if (tensionOnly && d <= tgtL) return;
+    const n = d > 1e-6 ? vScale(delta, 1 / d) : { x: 0, y: 1 };
+    const rA = bA ? vSub(pA, bA) : { x: 0, y: 0 }, rB = bB ? vSub(pB, bB) : { x: 0, y: 0 };
+    const vA = bA ? vAdd({ x: bA.vx, y: bA.vy }, vCrossSV(bA.omega, rA)) : { x: 0, y: 0 };
+    const vB = bB ? vAdd({ x: bB.vx, y: bB.vy }, vCrossSV(bB.omega, rB)) : { x: 0, y: 0 };
+    const k = (bA ? bA.invMass : 0) + (bB ? bB.invMass : 0) + Math.pow(vCross(rA, n), 2) * (bA ? bA.invInertia : 0) + Math.pow(vCross(rB, n), 2) * (bB ? bB.invInertia : 0);
+    if (k < 1e-9) return;
+    let j = -(vDot(vSub(vB, vA), n) + 0.25 * invDt * (d - tgtL)) / k;
+    if (tensionOnly && j > 0) j = 0;
+    applyImpulse(bA, bB, vScale(n, j), rA, rB);
+  }
+
+  function solveRope(bA, bB, localA, localB, maxL, pulley, invDt) {
+    if (!pulley) { solveDist(bA, bB, localA, localB, maxL, true, invDt); return; }
+    const pA = bA ? localToWorld(bA, localA) : localA;
+    const pB = bB ? localToWorld(bB, localB) : localB;
+    const uA = vSub(pulley, pA), uB = vSub(pulley, pB);
+    const dA = vLen(uA), dB = vLen(uB);
+    if (dA + dB <= maxL) return;
+    const nA = dA > 1e-6 ? vScale(uA, 1 / dA) : { x: 0, y: 1 };
+    const nB = dB > 1e-6 ? vScale(uB, 1 / dB) : { x: 0, y: 1 };
+    const rA = bA ? vSub(pA, bA) : { x: 0, y: 0 }, rB = bB ? vSub(pB, bB) : { x: 0, y: 0 };
+    const vA = bA ? vAdd({ x: bA.vx, y: bA.vy }, vCrossSV(bA.omega, rA)) : { x: 0, y: 0 };
+    const vB = bB ? vAdd({ x: bB.vx, y: bB.vy }, vCrossSV(bB.omega, rB)) : { x: 0, y: 0 };
+    const k = (bA ? bA.invMass : 0) + (bB ? bB.invMass : 0) + Math.pow(vCross(rA, nA), 2) * (bA ? bA.invInertia : 0) + Math.pow(vCross(rB, nB), 2) * (bB ? bB.invInertia : 0);
+    if (k < 1e-9) return;
+    const j = Math.max(0, -(-vDot(vA, nA) - vDot(vB, nB) + 0.25 * invDt * (dA + dB - maxL)) / k);
+    if (bA && !bA.isStatic) { const iA = vScale(nA, j); bA.vx += iA.x * bA.invMass; bA.vy += iA.y * bA.invMass; bA.omega += vCross(rA, iA) * bA.invInertia; }
+    if (bB && !bB.isStatic) { const iB = vScale(nB, j); bB.vx += iB.x * bB.invMass; bB.vy += iB.y * bB.invMass; bB.omega += vCross(rB, iB) * bB.invInertia; }
+    if (!pulley.isStatic) pulley.omega = (vDot(vB, nB) - vDot(vA, nA)) / Math.max(0.1, pulley.radius);
+  }
+
+  // =========================================================================
+  // 4. FACTORIES & PRESETS
+  // =========================================================================
+  let uid = 1;
+  const nextId = (p = 'id') => `${p}_${++uid}`;
+  const COLORS = ['#93c5fd', '#fca5a5', '#fde047', '#86efac', '#fdba74', '#c4b5fd', '#cbd5e1'];
+
+  function makeBody(opts) {
+    const w = opts.width ?? 1.4, h = opts.height ?? 1.0, r = opts.radius ?? 0.55, d = opts.density ?? 2.0;
+    let verts = opts.vertices || [];
+    let m = opts.mass;
+    if (opts.shape === 'rect') { verts = getRectVerts(w, h); if (m === undefined) m = w * h * d; }
+    else if (opts.shape === 'circle' || opts.shape === 'gear' || opts.shape === 'pulley') { if (m === undefined) m = Math.PI * r * r * d; }
+    else if (opts.shape === 'point') { if (m === undefined) m = 0.2; }
+    else if (opts.shape === 'polygon') { const pp = computePolyProps(verts, d); verts = pp.vertices; if (m === undefined) m = pp.mass; }
+
+    const b = {
+      id: opts.id || nextId('body'),
+      name: opts.name || `Object ${uid}`,
+      shape: opts.shape,
+      x: opts.x || 0, y: opts.y || 0, angle: opts.angle || 0,
+      vx: opts.vx || 0, vy: opts.vy || 0, omega: opts.omega || 0,
+      ax: 0, ay: 0, fx: 0, fy: 0, torque: 0,
+      width: w, height: h, radius: r, vertices: verts, teeth: opts.teeth || 12,
+      mass: m || 2, invMass: 0, density: d, inertia: 1, invInertia: 0,
+      restitution: opts.restitution ?? 0.5,
+      staticFriction: opts.staticFriction ?? 0.4,
+      kineticFriction: opts.kineticFriction ?? 0.3,
+      charge: opts.charge ?? 0,
+      isStatic: !!opts.isStatic,
+      collidable: opts.collidable ?? (opts.shape !== 'point'),
+      collisionGroup: opts.collisionGroup ?? 0,
+      fillColor: opts.fillColor || (opts.isStatic ? '#d1d5db' : COLORS[uid % COLORS.length]),
+      strokeColor: opts.strokeColor || '#1e293b',
+      showCOM: true, showName: !!opts.showName, trackCOM: !!opts.trackCOM,
+      tracePoints: [], thruster: opts.thruster || null
+    };
+    recalcBody(b);
+    return b;
+  }
+
+  function defaultWorld() {
+    return {
+      gravityMode: 'vertical', gx: 0, gy: -9.81, gravityG: 1.0,
+      airResistance: 0.01, electrostaticsEnabled: false, electrostaticK: 100,
+      dt: 1 / 60, substeps: 6, solverIterations: 10,
+      showGrid: true, gridSpacing: 1, snapToGrid: false, showRulers: true, showAxes: true,
+      showCOM: true, showTrackPoints: true,
+      showVectors: { velocity: false, acceleration: false, force: false, gravity: false },
+      vectorScale: 0.25, precision: 2
+    };
+  }
+
+  function getPreset(id) {
+    const world = defaultWorld();
+    const state = { time: 0, frame: 0, bodies: [], constraints: [], annotations: [], world };
+    let meters = [], controls = [];
+
+    if (id === 'pendulum') {
+      world.airResistance = 0;
+      const b1 = makeBody({ id: 'bob1', name: 'Bob 1', shape: 'circle', x: 2.2, y: 1.8, radius: 0.4, mass: 3, fillColor: '#60a5fa', trackCOM: true });
+      const b2 = makeBody({ id: 'bob2', name: 'Bob 2', shape: 'circle', x: 4.1, y: 1.5, radius: 0.35, mass: 2, fillColor: '#f87171', trackCOM: true });
+      state.bodies.push(b1, b2);
+      state.constraints.push(
+        { id: nextId('rod'), name: 'Arm 1', kind: 'rod', bodyAId: null, bodyBId: b1.id, localA: { x: 0, y: 3.2 }, localB: { x: 0, y: 0 }, restLength: Math.hypot(2.2, 1.8 - 3.2), enabled: true, color: '#334155' },
+        { id: nextId('rod'), name: 'Arm 2', kind: 'rod', bodyAId: b1.id, bodyBId: b2.id, localA: { x: 0, y: 0 }, localB: { x: 0, y: 0 }, restLength: Math.hypot(1.9, -0.3), enabled: true, color: '#334155' }
+      );
+      meters.push({ id: nextId('m'), title: 'Bob 2 Energy (KE / PE / Total)', bodyId: b2.id, metric: 'energy', displayType: 'graph', x: 16, y: 16, width: 255, data: [] });
+      controls.push({ id: nextId('c'), label: 'Gravity Y', targetType: 'world', targetId: null, property: 'gy', min: -20, max: 0, step: 0.1, unit: 'm/s²', x: 16, y: 185 });
+    } else if (id === 'projectile') {
+      world.airResistance = 0; world.showVectors.velocity = true;
+      const gnd = makeBody({ name: 'Ground', shape: 'rect', x: 0, y: -3.4, width: 20, height: 0.7, isStatic: true, restitution: 0.7, fillColor: '#cbd5e1' });
+      const ball = makeBody({ id: 'proj', name: 'Projectile', shape: 'circle', x: -5.5, y: -2.5, radius: 0.35, vx: 7.5, vy: 9.2, mass: 2, restitution: 0.75, fillColor: '#fb923c', trackCOM: true });
+      state.bodies.push(gnd, ball);
+      meters.push({ id: nextId('m'), title: 'Projectile Velocity', bodyId: ball.id, metric: 'velocity', displayType: 'graph', x: 16, y: 16, width: 255, data: [] });
+    } else if (id === 'inclined') {
+      world.showVectors.force = true; world.showVectors.velocity = true;
+      const flr = makeBody({ name: 'Floor', shape: 'rect', x: 0, y: -3.4, width: 18, height: 0.6, isStatic: true, fillColor: '#cbd5e1' });
+      const rmp = makeBody({ name: 'Ramp', shape: 'polygon', x: -1.8, y: -1.45, vertices: [{ x: -3.5, y: -1.5 }, { x: 3.5, y: -1.5 }, { x: -3.5, y: 1.8 }], isStatic: true, staticFriction: 0.25, kineticFriction: 0.2, fillColor: '#94a3b8' });
+      const blk = makeBody({ id: 'blk', name: 'Block', shape: 'rect', x: -3.3, y: 0.9, width: 1.1, height: 0.7, angle: -Math.atan2(3.3, 7.0), mass: 5, staticFriction: 0.22, kineticFriction: 0.18, restitution: 0.05, fillColor: '#fde047', trackCOM: true });
+      state.bodies.push(flr, rmp, blk);
+      meters.push({ id: nextId('m'), title: 'Block Acceleration', bodyId: blk.id, metric: 'acceleration', displayType: 'digital', x: 16, y: 16, width: 240, data: [] });
+      controls.push({ id: nextId('c'), label: 'Friction μk', targetType: 'body', targetId: blk.id, property: 'kineticFriction', min: 0, max: 1, step: 0.02, unit: '', x: 16, y: 135 });
+    } else if (id === 'spring') {
+      world.airResistance = 0;
+      const ceil = makeBody({ name: 'Support', shape: 'rect', x: 0, y: 3.2, width: 4, height: 0.45, isStatic: true, fillColor: '#94a3b8' });
+      const mb = makeBody({ id: 'mb', name: 'Mass', shape: 'rect', x: 0, y: -0.6, width: 1.2, height: 1.0, mass: 4, fillColor: '#93c5fd', trackCOM: true });
+      const sp = { id: nextId('spr'), name: 'Spring', kind: 'spring', bodyAId: ceil.id, bodyBId: mb.id, localA: { x: 0, y: -0.22 }, localB: { x: 0, y: 0.5 }, stiffness: 45, damping: 0.25, restLength: 2.0, enabled: true, color: '#2563eb' };
+      state.bodies.push(ceil, mb); state.constraints.push(sp);
+      meters.push({ id: nextId('m'), title: 'Mass Position Y', bodyId: mb.id, metric: 'position', displayType: 'graph', x: 16, y: 16, width: 255, data: [] });
+      controls.push({ id: nextId('c'), label: 'Stiffness k', targetType: 'constraint', targetId: sp.id, property: 'stiffness', min: 5, max: 150, step: 1, unit: 'N/m', x: 16, y: 185 });
+    } else if (id === 'atwood') {
+      const pul = makeBody({ id: 'pul', name: 'Pulley', shape: 'pulley', x: 0, y: 2.2, radius: 0.75, isStatic: true, collidable: false, fillColor: '#cbd5e1' });
+      const m1 = makeBody({ id: 'm1', name: 'Mass A (3kg)', shape: 'rect', x: -0.75, y: -0.2, width: 0.9, height: 0.9, mass: 3, fillColor: '#86efac' });
+      const m2 = makeBody({ id: 'm2', name: 'Mass B (5kg)', shape: 'rect', x: 0.75, y: 0.4, width: 1.0, height: 1.0, mass: 5, fillColor: '#fca5a5' });
+      state.bodies.push(pul, m1, m2);
+      state.constraints.push({ id: nextId('rope'), name: 'Rope', kind: 'rope', bodyAId: m1.id, bodyBId: m2.id, localA: { x: 0, y: 0.45 }, localB: { x: 0, y: 0.5 }, pulleyBodyId: pul.id, maxLength: 3.85, enabled: true, color: '#92400e' });
+      meters.push({ id: nextId('m'), title: 'Mass B Velocity', bodyId: m2.id, metric: 'velocity', displayType: 'graph', x: 16, y: 16, width: 250, data: [] });
+    } else if (id === 'cradle') {
+      world.airResistance = 0;
+      const r = 0.45;
+      for (let i = 0; i < 5; i++) {
+        const bx = (i - 2) * r * 2;
+        const ball = makeBody({ id: `cr_${i}`, name: `Sphere ${i + 1}`, shape: 'circle', x: i === 0 ? bx - 2.3 : bx, y: i === 0 ? 1.15 : 0, radius: r, mass: 2, restitution: 1, staticFriction: 0, kineticFriction: 0, fillColor: '#cbd5e1' });
+        state.bodies.push(ball);
+        state.constraints.push({ id: nextId('rod'), name: `Wire ${i + 1}`, kind: 'rod', bodyAId: null, bodyBId: ball.id, localA: { x: bx, y: 3.0 }, localB: { x: 0, y: 0 }, restLength: 3.0, enabled: true, color: '#475569' });
+      }
+    } else if (id === 'crank') {
+      const g1 = makeBody({ id: 'g1', name: 'Gear 1 (12T)', shape: 'gear', x: -2.4, y: 0.5, radius: 1.1, teeth: 12, mass: 4, collidable: false, fillColor: '#93c5fd' });
+      const g2 = makeBody({ id: 'g2', name: 'Gear 2 (18T)', shape: 'gear', x: 0.35, y: 0.5, radius: 1.65, teeth: 18, mass: 6, collidable: false, fillColor: '#fdba74' });
+      const sl = makeBody({ id: 'sl', name: 'Slider', shape: 'rect', x: 4.2, y: 0.5, width: 1.1, height: 0.8, mass: 2, collidable: false, fillColor: '#86efac' });
+      const mot = { id: nextId('mot'), name: 'Motor', kind: 'motor', bodyAId: g1.id, bodyBId: null, localA: { x: 0, y: 0 }, localB: { x: -2.4, y: 0.5 }, motorTargetOmega: 3, motorMaxTorque: 120, enabled: true, color: '#dc2626' };
+      state.bodies.push(g1, g2, sl);
+      state.constraints.push(
+        { id: nextId('pin'), name: 'Pin 1', kind: 'pin', bodyAId: g1.id, bodyBId: null, localA: { x: 0, y: 0 }, localB: { x: -2.4, y: 0.5 }, enabled: true, color: '#334155' },
+        { id: nextId('pin'), name: 'Pin 2', kind: 'pin', bodyAId: g2.id, bodyBId: null, localA: { x: 0, y: 0 }, localB: { x: 0.35, y: 0.5 }, enabled: true, color: '#334155' },
+        mot,
+        { id: nextId('mesh'), name: 'Mesh', kind: 'gearMesh', bodyAId: g1.id, bodyBId: g2.id, localA: { x: 0, y: 0 }, localB: { x: 0, y: 0 }, enabled: true, color: '#475569' },
+        { id: nextId('slot'), name: 'Track', kind: 'slot', bodyAId: sl.id, bodyBId: null, localA: { x: 0, y: 0 }, localB: { x: 4.2, y: 0.5 }, slotAngle: 0, slotKeyed: true, slotLength: 5, referenceAngle: 0, enabled: true, color: '#0f172a' },
+        { id: nextId('rod'), name: 'ConRod', kind: 'rod', bodyAId: g2.id, bodyBId: sl.id, localA: { x: 1.15, y: 0 }, localB: { x: 0, y: 0 }, restLength: 2.7, enabled: true, color: '#0284c7' }
+      );
+      controls.push({ id: nextId('c'), label: 'Motor ω', targetType: 'constraint', targetId: mot.id, property: 'motorTargetOmega', min: -8, max: 8, step: 0.5, unit: 'rad/s', x: 16, y: 16 });
+    } else if (id === 'car') {
+      const road = makeBody({ name: 'Road', shape: 'rect', x: 2, y: -3.2, width: 28, height: 0.6, isStatic: true, staticFriction: 0.85, kineticFriction: 0.75, fillColor: '#cbd5e1' });
+      const bump = makeBody({ name: 'Bump', shape: 'polygon', x: 1.5, y: -2.75, vertices: [{ x: -1.1, y: -0.2 }, { x: 1.1, y: -0.2 }, { x: 0, y: 0.25 }], isStatic: true, fillColor: '#94a3b8' });
+      const ch = makeBody({ id: 'ch', name: 'Chassis', shape: 'rect', x: -4.5, y: -1.4, width: 3.0, height: 0.7, mass: 8, collisionGroup: 2, fillColor: '#f87171', trackCOM: true });
+      const wL = makeBody({ id: 'wL', name: 'Rear Wheel', shape: 'circle', x: -5.6, y: -2.35, radius: 0.5, mass: 2, staticFriction: 0.9, kineticFriction: 0.85, collisionGroup: 1, fillColor: '#334155' });
+      const wR = makeBody({ id: 'wR', name: 'Front Wheel', shape: 'circle', x: -3.4, y: -2.35, radius: 0.5, mass: 2, staticFriction: 0.9, kineticFriction: 0.85, collisionGroup: 1, fillColor: '#334155' });
+      state.bodies.push(road, bump, ch, wL, wR);
+      state.constraints.push(
+        { id: nextId('slot'), name: 'Rear Slot', kind: 'slot', bodyAId: wL.id, bodyBId: ch.id, localA: { x: 0, y: 0 }, localB: { x: -1.1, y: -0.95 }, slotAngle: Math.PI / 2, slotLength: 0.9, enabled: true, color: '#64748b' },
+        { id: nextId('slot'), name: 'Front Slot', kind: 'slot', bodyAId: wR.id, bodyBId: ch.id, localA: { x: 0, y: 0 }, localB: { x: 1.1, y: -0.95 }, slotAngle: Math.PI / 2, slotLength: 0.9, enabled: true, color: '#64748b' },
+        { id: nextId('spr'), name: 'Rear Spring', kind: 'spring', bodyAId: ch.id, bodyBId: wL.id, localA: { x: -1.1, y: -0.1 }, localB: { x: 0, y: 0 }, stiffness: 180, damping: 14, restLength: 0.85, enabled: true, color: '#2563eb' },
+        { id: nextId('spr'), name: 'Front Spring', kind: 'spring', bodyAId: ch.id, bodyBId: wR.id, localA: { x: 1.1, y: -0.1 }, localB: { x: 0, y: 0 }, stiffness: 180, damping: 14, restLength: 0.85, enabled: true, color: '#2563eb' },
+        { id: nextId('mot'), name: 'Drive Motor', kind: 'motor', bodyAId: wL.id, bodyBId: ch.id, localA: { x: 0, y: 0 }, localB: { x: -1.1, y: -0.95 }, motorTargetOmega: -6, motorMaxTorque: 85, enabled: true, color: '#dc2626' }
+      );
+    } else if (id === 'orbit') {
+      world.gravityMode = 'planetary'; world.gravityG = 1.2; world.airResistance = 0; world.showVectors.velocity = true;
+      const sun = makeBody({ name: 'Star', shape: 'circle', x: 0, y: 0, radius: 0.85, mass: 50, isStatic: true, fillColor: '#fde047' });
+      const pl = makeBody({ name: 'Planet', shape: 'circle', x: 3.4, y: 0, radius: 0.32, vy: 4.1, mass: 1, fillColor: '#60a5fa', trackCOM: true });
+      const cm = makeBody({ name: 'Comet', shape: 'circle', x: -4.8, y: 0, radius: 0.2, vy: -2.4, mass: 0.4, fillColor: '#f87171', trackCOM: true });
+      state.bodies.push(sun, pl, cm);
+    }
+    return { state, meters, controls };
+  }
+
+  // =========================================================================
+  // 5. APP STATE & UI WIRING
+  // =========================================================================
+  let bundle = getPreset('pendulum');
+  let sim = JSON.parse(JSON.stringify(bundle.state));
+  let initialReset = JSON.parse(JSON.stringify(bundle.state));
+  let meters = bundle.meters;
+  let controls = bundle.controls;
+  let undoStack = [], redoStack = [];
+  let tapeFrames = [captureFrame()];
+  let tapeIdx = 0;
+  let isRunning = false;
+  let playbackSpeed = 1;
+  let activeTool = 'select';
+  let selection = { bodyIds: [], constraintId: null };
+  let cam = { panX: 0, panY: 0, ppm: 55 };
+  let dragSpring = null;
+  let hoverWorld = { x: 0, y: 0 };
+  let polyPts = [];
+
+  const canvas = document.getElementById('simCanvas');
+  const ctx = canvas.getContext('2d');
+  const stageWrap = document.getElementById('stageWrap');
+  const overlayLayer = document.getElementById('overlayLayer');
+
+  function captureFrame() {
+    return {
+      time: sim.time, frame: sim.frame,
+      bodies: sim.bodies.map(b => ({ id: b.id, x: b.x, y: b.y, angle: b.angle, vx: b.vx, vy: b.vy, omega: b.omega, ax: b.ax, ay: b.ay }))
+    };
+  }
+  function restoreFrame(f) {
+    sim.time = f.time; sim.frame = f.frame;
+    const map = new Map(f.bodies.map(b => [b.id, b]));
+    for (const b of sim.bodies) {
+      const s = map.get(b.id);
+      if (s) Object.assign(b, s);
+    }
+  }
+  function pushUndo() {
+    undoStack.push(JSON.parse(JSON.stringify(sim)));
+    if (undoStack.length > 35) undoStack.shift();
+    redoStack = [];
+    if (sim.frame === 0) {
+      initialReset = JSON.parse(JSON.stringify(sim));
+      tapeFrames = [captureFrame()];
+      tapeIdx = 0;
+    }
+  }
+
+  // Build Left Tool Palette
+  const TOOLS = [
+    ['select', 'Select', '<path d="M5 3L5 15L8.5 11.8L11.5 17L13.4 16L10.4 10.8L15 10.5Z" fill="currentColor" stroke="none"/>'],
+    ['rotate', 'Rotate', '<path d="M15.5 8A5.5 5.5 0 1 0 14 14M15.5 4.5V8H12"/><circle cx="10" cy="10" r="1.5" fill="currentColor"/>'],
+    ['zoom', 'Zoom', '<circle cx="8.5" cy="8.5" r="5"/><path d="M12.2 12.2L16.5 16.5M6.5 8.5H10.5M8.5 6.5V10.5"/>'],
+    ['pan', 'Pan', '<path d="M10 3V17M3 10H17M10 3L8 5M10 3L12 5M10 17L8 15M10 17L12 15"/>'],
+    ['rect', 'Rectangle', '<rect x="3" y="5.5" width="14" height="9" fill="#93c5fd" fill-opacity="0.6"/>'],
+    ['square', 'Square', '<rect x="4.5" y="4.5" width="11" height="11" fill="#93c5fd" fill-opacity="0.6"/>'],
+    ['circle', 'Circle', '<circle cx="10" cy="10" r="6" fill="#93c5fd" fill-opacity="0.6"/>'],
+    ['polygon', 'Polygon', '<polygon points="10,3.5 16.5,8 14,16 6,16 3.5,8" fill="#93c5fd" fill-opacity="0.6"/>'],
+    ['point', 'Point', '<circle cx="10" cy="10" r="2.2" fill="currentColor"/><path d="M10 4V6.5M10 13.5V16M4 10H6.5M13.5 10H16"/>'],
+    ['anchor', 'Anchor', '<path d="M10 3.5V16.5M6.5 6.5H13.5M5 12C5 15 7.5 16.5 10 16.5C12.5 16.5 15 15 15 12"/>'],
+    ['pin', 'Pin Joint', '<circle cx="10" cy="10" r="4.5"/><circle cx="10" cy="10" r="1.5" fill="currentColor"/>'],
+    ['weld', 'Rigid Joint', '<rect x="4" y="4" width="12" height="12"/><path d="M5.5 5.5L14.5 14.5M14.5 5.5L5.5 14.5"/>'],
+    ['hslot', 'Horiz Slot', '<rect x="2.5" y="8" width="15" height="4" rx="2"/><circle cx="10" cy="10" r="2" fill="currentColor"/>'],
+    ['vslot', 'Vert Slot', '<rect x="8" y="2.5" width="4" height="15" rx="2"/><circle cx="10" cy="10" r="2" fill="currentColor"/>'],
+    ['slot', 'Angled Slot', '<path d="M4.5 15.5L15.5 4.5"/><circle cx="10" cy="10" r="2" fill="currentColor"/>'],
+    ['rod', 'Rod', '<line x1="4.5" y1="15.5" x2="15.5" y2="4.5" stroke-width="2"/><circle cx="4.5" cy="15.5" r="2" fill="#fff"/><circle cx="15.5" cy="4.5" r="2" fill="#fff"/>'],
+    ['spring', 'Spring', '<path d="M4 16L6 14L4.5 11.5L9.5 11L6.5 8L12 7.5L9 4.5L14 4L16 2"/>'],
+    ['damper', 'Damper', '<path d="M3 17L7.5 12.5M6 10L10 14L14 10L10 6M12.5 7.5L17 3"/>'],
+    ['rope', 'Rope', '<path d="M4 15.5C6.5 10 12 13 16 4.5"/><circle cx="4" cy="15.5" r="1.5" fill="currentColor"/><circle cx="16" cy="4.5" r="1.5" fill="currentColor"/>'],
+    ['actuator', 'Actuator', '<line x1="4" y1="16" x2="16" y2="4" stroke-width="3"/><circle cx="4" cy="16" r="1.5" fill="currentColor"/>'],
+    ['motor', 'Motor', '<circle cx="10" cy="10" r="5"/><path d="M10 2.5A7.5 7.5 0 0 1 17.5 10M17.5 7.5V10.5H14.5"/>'],
+    ['gear', 'Gear', '<circle cx="10" cy="10" r="4.2" fill="#93c5fd" fill-opacity="0.5"/><path d="M10 3V5M10 15V17M3 10H5M15 10H17M5 5L6.5 6.5M13.5 13.5L15 15"/>'],
+    ['pulley', 'Pulley', '<circle cx="10" cy="8.5" r="4.5" fill="#cbd5e1"/><path d="M5.5 8.5V16.5M14.5 8.5V16.5"/>'],
+    ['force', 'Force', '<line x1="3.5" y1="15.5" x2="15.5" y2="4.5" stroke="#dc2626" stroke-width="2"/><path d="M10.5 4.5H15.5V9.5" stroke="#dc2626" stroke-width="2"/>'],
+    ['torque', 'Torque', '<path d="M15 8A5.5 5.5 0 1 0 12 15.5" stroke="#dc2626" stroke-width="1.8"/>'],
+    ['thruster', 'Thruster', '<path d="M14 6L8 12L5 11L11 5Z" fill="#cbd5e1"/><path d="M6.5 13.5L3.5 16.5" stroke="#ea580c" stroke-width="1.8"/>']
+  ];
+
+  const palCont = document.getElementById('paletteContainer');
+  const groupEl = document.createElement('div');
+  groupEl.className = 'palette-group';
+  TOOLS.forEach(([id, label, svg]) => {
+    const btn = document.createElement('button');
+    btn.className = 'pal-btn' + (id === activeTool ? ' active' : '');
+    btn.dataset.tool = id;
+    btn.title = label;
+    btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${svg}</svg>`;
+    btn.onclick = () => setActiveTool(id);
+    groupEl.appendChild(btn);
+  });
+  palCont.appendChild(groupEl);
+
+  function setActiveTool(id) {
+    activeTool = id; polyPts = [];
+    document.querySelectorAll('.pal-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === id));
+    const found = TOOLS.find(t => t[0] === id);
+    document.getElementById('activeToolLabel').textContent = found ? found[1] : id;
+  }
+
+  // Canvas & Rulers Sizing
+  function screenToWorld(sx, sy) {
+    return { x: cam.panX + (sx - canvas.clientWidth / 2) / cam.ppm, y: cam.panY - (sy - canvas.clientHeight / 2) / cam.ppm };
+  }
+  function worldToScreen(wx, wy) {
+    return { x: canvas.clientWidth / 2 + (wx - cam.panX) * cam.ppm, y: canvas.clientHeight / 2 - (wy - cam.panY) * cam.ppm };
+  }
+
+  function resizeCanvas() {
+    const off = sim.world.showRulers ? 22 : 0;
+    document.getElementById('rulerCorner').classList.toggle('hidden', !sim.world.showRulers);
+    document.getElementById('rulerH').classList.toggle('hidden', !sim.world.showRulers);
+    document.getElementById('rulerV').classList.toggle('hidden', !sim.world.showRulers);
+    canvas.style.left = off + 'px';
+    canvas.style.top = off + 'px';
+    canvas.style.width = `calc(100% - ${off}px)`;
+    canvas.style.height = `calc(100% - ${off}px)`;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+    canvas.height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    renderRulers();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  function renderRulers() {
+    if (!sim.world.showRulers) return;
+    const rH = document.getElementById('rulerH'), rV = document.getElementById('rulerV');
+    const w = canvas.clientWidth, h = canvas.clientHeight, step = cam.ppm > 90 ? 0.5 : cam.ppm > 35 ? 1 : 2;
+    let hHtml = '', vHtml = '';
+    const minX = cam.panX - w / (2 * cam.ppm), maxX = cam.panX + w / (2 * cam.ppm);
+    for (let x = Math.floor(minX / step) * step; x <= maxX; x += step) {
+      const px = w / 2 + (x - cam.panX) * cam.ppm;
+      hHtml += `<div style="position:absolute;left:${px}px;bottom:0;border-left:1px solid #64748b;height:10px;padding-left:2px;font-size:9px;color:#475569;" class="mono">${Number(x.toFixed(1))}</div>`;
+    }
+    const minY = cam.panY - h / (2 * cam.ppm), maxY = cam.panY + h / (2 * cam.ppm);
+    for (let y = Math.floor(minY / step) * step; y <= maxY; y += step) {
+      const py = h / 2 - (y - cam.panY) * cam.ppm;
+      vHtml += `<div style="position:absolute;top:${py}px;right:0;border-top:1px solid #64748b;width:10px;font-size:8px;color:#475569;" class="mono">${Number(y.toFixed(1))}</div>`;
+    }
+    rH.innerHTML = hHtml; rV.innerHTML = vHtml;
+  }
+
+  // Pointer Interaction (zero-hang setPointerCapture)
+  let drag = { type: 'none' };
+
+  function topBodyAt(pt, tol) {
+    for (let i = sim.bodies.length - 1; i >= 0; i--) {
+      if (pointInBody(sim.bodies[i], pt, tol)) return sim.bodies[i];
+    }
+    return null;
+  }
+  function allBodiesAt(pt, tol) {
+    const out = [];
+    for (let i = sim.bodies.length - 1; i >= 0; i--) {
+      if (pointInBody(sim.bodies[i], pt, tol)) out.push(sim.bodies[i]);
+    }
+    return out;
+  }
+  function constraintAt(pt, tol) {
+    const map = new Map(sim.bodies.map(b => [b.id, b]));
+    for (let i = sim.constraints.length - 1; i >= 0; i--) {
+      const c = sim.constraints[i];
+      const bA = c.bodyAId ? map.get(c.bodyAId) : null, bB = c.bodyBId ? map.get(c.bodyBId) : null;
+      const pA = bA ? localToWorld(bA, c.localA) : c.localA;
+      const pB = bB ? localToWorld(bB, c.localB) : c.localB;
+      if (c.kind === 'pin' || c.kind === 'weld' || c.kind === 'motor' || c.kind === 'torque') {
+        if (vLen(vSub(pt, pA)) <= tol * 1.4) return c;
+      } else if (distToSegment(pt, pA, pB) <= tol) return c;
+    }
+    return null;
+  }
+  const maybeSnap = (pt) => {
+    if (!sim.world.snapToGrid) return pt;
+    const s = Math.max(0.05, sim.world.gridSpacing * 0.5);
+    return { x: Math.round(pt.x / s) * s, y: Math.round(pt.y / s) * s };
+  };
+
+  canvas.addEventListener('pointerdown', (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    const rawW = screenToWorld(sx, sy), pt = maybeSnap(rawW), tol = 11 / cam.ppm;
+
+    if (e.button === 1 || activeTool === 'pan') {
+      drag = { type: 'pan', sx, sy, px: cam.panX, py: cam.panY }; return;
+    }
+    if (activeTool === 'zoom') {
+      cam.ppm = clamp(cam.ppm * (e.altKey ? 0.8 : 1.25), 12, 240);
+      renderRulers(); return;
+    }
+    if (activeTool === 'point') {
+      pushUndo();
+      const pb = makeBody({ shape: 'point', x: pt.x, y: pt.y, radius: 0.12, fillColor: '#1d4ed8' });
+      sim.bodies.push(pb); selection = { bodyIds: [pb.id], constraintId: null };
+      renderProperties(); return;
+    }
+    if (activeTool === 'polygon') {
+      if (polyPts.length >= 3 && vLen(vSub(pt, polyPts[0])) <= tol * 1.4) {
+        finishPoly(); return;
+      }
+      polyPts.push(pt); return;
+    }
+    if (['rect', 'square', 'circle', 'gear', 'pulley'].includes(activeTool)) {
+      drag = { type: 'shape', tool: activeTool, a: pt, b: pt }; return;
+    }
+    if (activeTool === 'anchor') {
+      const hit = topBodyAt(rawW, tol);
+      if (hit) { pushUndo(); hit.isStatic = !hit.isStatic; hit.vx = 0; hit.vy = 0; hit.omega = 0; recalcBody(hit); selection = { bodyIds: [hit.id], constraintId: null }; renderProperties(); }
+      return;
+    }
+    if (activeTool === 'pin' || activeTool === 'weld') {
+      const hits = allBodiesAt(rawW, tol);
+      if (hits.length >= 1) {
+        pushUndo();
+        const bA = hits[0], bB = hits[1] || null;
+        const c = { id: nextId(activeTool), name: activeTool === 'pin' ? 'Pin Joint' : 'Rigid Joint', kind: activeTool, bodyAId: bA.id, bodyBId: bB ? bB.id : null, localA: worldToLocal(bA, rawW), localB: bB ? worldToLocal(bB, rawW) : rawW, referenceAngle: bB ? bB.angle - bA.angle : -bA.angle, enabled: true, color: '#1e293b' };
+        sim.constraints.push(c); selection = { bodyIds: [], constraintId: c.id }; renderProperties();
+      }
+      return;
+    }
+    if (activeTool === 'hslot' || activeTool === 'vslot') {
+      const hit = topBodyAt(rawW, tol);
+      if (hit) {
+        pushUndo();
+        const c = { id: nextId('slot'), name: activeTool === 'hslot' ? 'Horiz Slot' : 'Vert Slot', kind: 'slot', bodyAId: hit.id, bodyBId: null, localA: worldToLocal(hit, rawW), localB: rawW, slotAngle: activeTool === 'hslot' ? 0 : Math.PI / 2, slotKeyed: false, slotLength: 4, enabled: true, color: '#0f172a' };
+        sim.constraints.push(c); selection = { bodyIds: [], constraintId: c.id }; renderProperties();
+      }
+      return;
+    }
+    if (activeTool === 'motor') {
+      const hits = allBodiesAt(rawW, tol);
+      if (hits.length >= 1) {
+        pushUndo();
+        const bA = hits[0], bB = hits[1] || null;
+        const pin = { id: nextId('pin'), name: 'Motor Pin', kind: 'pin', bodyAId: bA.id, bodyBId: bB ? bB.id : null, localA: worldToLocal(bA, rawW), localB: bB ? worldToLocal(bB, rawW) : rawW, enabled: true, color: '#334155' };
+        const mot = { id: nextId('mot'), name: 'Motor', kind: 'motor', bodyAId: bA.id, bodyBId: bB ? bB.id : null, localA: worldToLocal(bA, rawW), localB: bB ? worldToLocal(bB, rawW) : rawW, motorTargetOmega: 3, motorMaxTorque: 80, enabled: true, color: '#dc2626' };
+        sim.constraints.push(pin, mot); selection = { bodyIds: [], constraintId: mot.id }; renderProperties();
+      }
+      return;
+    }
+    if (activeTool === 'torque') {
+      const hit = topBodyAt(rawW, tol);
+      if (hit) { pushUndo(); const tq = { id: nextId('tq'), name: 'Torque', kind: 'torque', bodyAId: hit.id, bodyBId: null, localA: { x: 0, y: 0 }, localB: { x: 0, y: 0 }, torqueValue: 15, enabled: true, color: '#dc2626' }; sim.constraints.push(tq); selection = { bodyIds: [], constraintId: tq.id }; renderProperties(); }
+      return;
+    }
+    if (activeTool === 'thruster') {
+      const hit = topBodyAt(rawW, tol);
+      if (hit) { pushUndo(); const l = worldToLocal(hit, rawW); hit.thruster = { enabled: true, fx: 25, fy: 0, localX: l.x, localY: l.y }; selection = { bodyIds: [hit.id], constraintId: null }; renderProperties(); }
+      return;
+    }
+    if (['spring', 'damper', 'rope', 'rod', 'actuator', 'slot', 'force'].includes(activeTool)) {
+      const hit = topBodyAt(rawW, tol);
+      drag = { type: 'link', tool: activeTool, a: pt, b: pt, bId: hit ? hit.id : null, locA: hit ? worldToLocal(hit, rawW) : pt };
+      return;
+    }
+    if (activeTool === 'rotate') {
+      const hit = topBodyAt(rawW, tol);
+      if (hit) { selection = { bodyIds: [hit.id], constraintId: null }; drag = { type: 'rot', id: hit.id, sa: hit.angle, pa: Math.atan2(rawW.y - hit.y, rawW.x - hit.x) }; renderProperties(); }
+      return;
+    }
+
+    // Select Tool
+    const hitB = topBodyAt(rawW, tol);
+    if (hitB) {
+      if (e.shiftKey) {
+        selection.bodyIds = selection.bodyIds.includes(hitB.id) ? selection.bodyIds.filter(x => x !== hitB.id) : [...selection.bodyIds, hitB.id];
+      } else if (!selection.bodyIds.includes(hitB.id)) {
+        selection = { bodyIds: [hitB.id], constraintId: null };
+      }
+      renderProperties();
+      if (isRunning) {
+        dragSpring = { bodyId: hitB.id, localPoint: worldToLocal(hitB, rawW), targetWorld: rawW };
+        drag = { type: 'grab' };
+      } else {
+        pushUndo();
+        const init = new Map(sim.bodies.filter(b => selection.bodyIds.includes(b.id)).map(b => [b.id, { x: b.x, y: b.y }]));
+        drag = { type: 'move', startW: rawW, init };
+      }
+      return;
+    }
+    const hitC = constraintAt(rawW, tol);
+    if (hitC) { selection = { bodyIds: [], constraintId: hitC.id }; renderProperties(); return; }
+    selection = { bodyIds: [], constraintId: null }; renderProperties();
+    drag = { type: 'marquee', a: rawW, b: rawW };
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    const rawW = screenToWorld(sx, sy), pt = maybeSnap(rawW);
+    hoverWorld = rawW;
+    document.getElementById('lblCoords').textContent = `X: ${rawW.x.toFixed(sim.world.precision)} m · Y: ${rawW.y.toFixed(sim.world.precision)} m`;
+
+    if (drag.type === 'pan') {
+      cam.panX = drag.px - (sx - drag.sx) / cam.ppm;
+      cam.panY = drag.py + (sy - drag.sy) / cam.ppm;
+      renderRulers();
+    } else if (drag.type === 'grab' && dragSpring) {
+      dragSpring.targetWorld = rawW;
+    } else if (drag.type === 'move') {
+      const dx = rawW.x - drag.startW.x, dy = rawW.y - drag.startW.y;
+      for (const b of sim.bodies) {
+        const orig = drag.init.get(b.id);
+        if (orig) { const m = maybeSnap({ x: orig.x + dx, y: orig.y + dy }); b.x = m.x; b.y = m.y; b.tracePoints = []; }
+      }
+      renderProperties();
+    } else if (drag.type === 'rot') {
+      const b = sim.bodies.find(x => x.id === drag.id);
+      if (b) { b.angle = drag.sa + (Math.atan2(rawW.y - b.y, rawW.x - b.x) - drag.pa); renderProperties(); }
+    } else if (drag.type === 'shape' || drag.type === 'link') {
+      drag.b = pt;
+    } else if (drag.type === 'marquee') {
+      drag.b = rawW;
+    }
+  });
+
+  function finishDrag(e) {
+    if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+    const d = drag; drag = { type: 'none' }; dragSpring = null;
+    if (d.type === 'marquee') {
+      const x1 = Math.min(d.a.x, d.b.x), x2 = Math.max(d.a.x, d.b.x), y1 = Math.min(d.a.y, d.b.y), y2 = Math.max(d.a.y, d.b.y);
+      if (x2 - x1 > 0.08 || y2 - y1 > 0.08) {
+        selection = { bodyIds: sim.bodies.filter(b => b.x >= x1 && b.x <= x2 && b.y >= y1 && b.y <= y2).map(b => b.id), constraintId: null };
+        renderProperties();
+      }
+    } else if (d.type === 'shape') {
+      pushUndo();
+      const dx = d.b.x - d.a.x, dy = d.b.y - d.a.y;
+      let nb;
+      if (d.tool === 'rect' || d.tool === 'square') {
+        let w = Math.abs(dx), h = Math.abs(dy);
+        if (d.tool === 'square') { const s = Math.max(w, h, 0.8); w = s; h = s; }
+        else if (w < 0.25 && h < 0.25) { w = 1.6; h = 1.0; } else { w = Math.max(0.25, w); h = Math.max(0.25, h); }
+        nb = makeBody({ shape: 'rect', x: d.tool === 'square' ? d.a.x + (dx >= 0 ? w / 2 : -w / 2) : (d.a.x + d.b.x) / 2, y: d.tool === 'square' ? d.a.y + (dy >= 0 ? h / 2 : -h / 2) : (d.a.y + d.b.y) / 2, width: w, height: h });
+      } else {
+        const r = Math.max(0.35, Math.hypot(dx, dy) < 0.1 ? 0.65 : Math.hypot(dx, dy));
+        nb = makeBody({ shape: d.tool, x: d.a.x, y: d.a.y, radius: r, collidable: d.tool === 'circle' });
+      }
+      sim.bodies.push(nb); selection = { bodyIds: [nb.id], constraintId: null }; renderProperties();
+    } else if (d.type === 'link') {
+      const tol = 12 / cam.ppm, hitE = topBodyAt(d.b, tol), len = vLen(vSub(d.b, d.a));
+      if (d.tool === 'force') {
+        if (d.bId) {
+          pushUndo();
+          const fv = vSub(d.b, d.a);
+          const fc = { id: nextId('f'), name: 'Force', kind: 'force', bodyAId: d.bId, bodyBId: null, localA: d.locA, localB: { x: 0, y: 0 }, forceX: len < 0.1 ? 20 : fv.x * 20, forceY: len < 0.1 ? 0 : fv.y * 20, enabled: true, color: '#dc2626' };
+          sim.constraints.push(fc); selection = { bodyIds: [], constraintId: fc.id }; renderProperties();
+        }
+        return;
+      }
+      if (d.tool === 'slot') {
+        if (d.bId) {
+          pushUndo();
+          const sc = { id: nextId('sl'), name: 'Slot', kind: 'slot', bodyAId: d.bId, bodyBId: null, localA: d.locA, localB: d.a, slotAngle: len > 0.1 ? Math.atan2(d.b.y - d.a.y, d.b.x - d.a.x) : 0, slotLength: Math.max(3, len * 2), enabled: true, color: '#0f172a' };
+          sim.constraints.push(sc); selection = { bodyIds: [], constraintId: sc.id }; renderProperties();
+        }
+        return;
+      }
+      if (len < 0.12 && !d.bId && !hitE) return;
+      pushUndo();
+      let pulId = null;
+      if (d.tool === 'rope') {
+        const mid = { x: (d.a.x + d.b.x) / 2, y: (d.a.y + d.b.y) / 2 };
+        const pul = sim.bodies.find(b => b.shape === 'pulley' && vLen(vSub(mid, b)) <= b.radius * 2.5);
+        if (pul) pulId = pul.id;
+      }
+      const c = { id: nextId(d.tool), name: d.tool.toUpperCase(), kind: d.tool, bodyAId: d.bId, bodyBId: hitE ? hitE.id : null, localA: d.locA, localB: hitE ? worldToLocal(hitE, d.b) : d.b, restLength: Math.max(0.2, len), maxLength: Math.max(0.2, len), stiffness: 50, damping: d.tool === 'damper' ? 10 : 0.4, actuatorMode: 'sine', actuatorAmplitude: 0.4, actuatorFrequency: 3, pulleyBodyId: pulId, enabled: true, color: d.tool === 'spring' ? '#2563eb' : d.tool === 'rope' ? '#92400e' : '#1e293b' };
+      sim.constraints.push(c); selection = { bodyIds: [], constraintId: c.id }; renderProperties();
+    }
+  }
+  canvas.addEventListener('pointerup', finishDrag);
+  canvas.addEventListener('pointercancel', finishDrag);
+  canvas.addEventListener('dblclick', () => { if (activeTool === 'polygon') { finishPoly(); setActiveTool('select'); } });
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect(), sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    const before = screenToWorld(sx, sy);
+    cam.ppm = clamp(cam.ppm * (e.deltaY < 0 ? 1.12 : 0.89), 12, 240);
+    cam.panX = before.x - (sx - canvas.clientWidth / 2) / cam.ppm;
+    cam.panY = before.y + (sy - canvas.clientHeight / 2) / cam.ppm;
+    renderRulers();
+  }, { passive: false });
+
+  function finishPoly() {
+    if (polyPts.length >= 3) {
+      pushUndo();
+      let cx = 0, cy = 0; polyPts.forEach(p => { cx += p.x; cy += p.y; }); cx /= polyPts.length; cy /= polyPts.length;
+      const pb = makeBody({ shape: 'polygon', x: cx, y: cy, vertices: polyPts.map(p => ({ x: p.x - cx, y: p.y - cy })) });
+      sim.bodies.push(pb); selection = { bodyIds: [pb.id], constraintId: null }; renderProperties();
+    }
+    polyPts = [];
+  }
+
+  // =========================================================================
+  // 6. CANVAS RENDERER & SIMULATION LOOP
+  // =========================================================================
+  function drawScene() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+    const minWX = cam.panX - w / (2 * cam.ppm), maxWX = cam.panX + w / (2 * cam.ppm);
+    const minWY = cam.panY - h / (2 * cam.ppm), maxWY = cam.panY + h / (2 * cam.ppm);
+
+    if (sim.world.showGrid) {
+      const sp = Math.max(0.25, sim.world.gridSpacing);
+      ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1; ctx.beginPath();
+      for (let gx = Math.floor(minWX / sp) * sp; gx <= maxWX; gx += sp) { const x = worldToScreen(gx, 0).x; ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+      for (let gy = Math.floor(minWY / sp) * sp; gy <= maxWY; gy += sp) { const y = worldToScreen(0, gy).y; ctx.moveTo(0, y); ctx.lineTo(w, y); }
+      ctx.stroke();
+    }
+    if (sim.world.showAxes) {
+      const o = worldToScreen(0, 0);
+      ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.2; ctx.beginPath();
+      ctx.moveTo(0, o.y); ctx.lineTo(w, o.y); ctx.moveTo(o.x, 0); ctx.lineTo(o.x, h); ctx.stroke();
+    }
+    if (sim.world.showTrackPoints) {
+      for (const b of sim.bodies) {
+        if (b.trackCOM && b.tracePoints.length > 1) {
+          ctx.strokeStyle = b.strokeColor; ctx.globalAlpha = 0.45; ctx.lineWidth = 1.2; ctx.beginPath();
+          b.tracePoints.forEach((p, i) => { const s = worldToScreen(p.x, p.y); if (i === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y); });
+          ctx.stroke(); ctx.globalAlpha = 1;
+        }
+      }
+    }
+
+    const bMap = new Map(sim.bodies.map(b => [b.id, b]));
+    for (const c of sim.constraints) if (c.kind === 'slot') drawConstraint(c, bMap);
+    for (const b of sim.bodies) drawBody(b);
+    for (const c of sim.constraints) if (c.kind !== 'slot') drawConstraint(c, bMap);
+
+    // Vectors
+    const vs = sim.world.vectorScale;
+    for (const b of sim.bodies) {
+      const o = worldToScreen(b.x, b.y);
+      if (sim.world.showVectors.velocity) drawVec(o, b.vx * vs * cam.ppm, -b.vy * vs * cam.ppm, '#2563eb');
+      if (sim.world.showVectors.acceleration) drawVec(o, b.ax * vs * cam.ppm * 0.5, -b.ay * vs * cam.ppm * 0.5, '#16a34a');
+      if (sim.world.showVectors.force && !b.isStatic) drawVec(o, b.mass * b.ax * vs * cam.ppm * 0.08, -b.mass * b.ay * vs * cam.ppm * 0.08, '#dc2626');
+    }
+
+    // Preview shapes
+    if (drag.type === 'shape') {
+      const a = worldToScreen(drag.a.x, drag.a.y), b = worldToScreen(drag.b.x, drag.b.y);
+      ctx.strokeStyle = '#2563eb'; ctx.fillStyle = 'rgba(147,197,253,0.35)'; ctx.lineWidth = 1.5;
+      if (['circle', 'gear', 'pulley'].includes(drag.tool)) { ctx.beginPath(); ctx.arc(a.x, a.y, Math.hypot(b.x - a.x, b.y - a.y), 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+      else { ctx.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); ctx.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); }
+    } else if (drag.type === 'link' || drag.type === 'marquee') {
+      const a = worldToScreen(drag.a.x, drag.a.y), b = worldToScreen(drag.b.x, drag.b.y);
+      ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+      if (drag.type === 'marquee') ctx.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+      else { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+      ctx.setLineDash([]);
+    }
+    if (polyPts.length) {
+      ctx.strokeStyle = '#2563eb'; ctx.beginPath();
+      polyPts.forEach((p, i) => { const s = worldToScreen(p.x, p.y); if (i === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y); });
+      const hs = worldToScreen(hoverWorld.x, hoverWorld.y); ctx.lineTo(hs.x, hs.y); ctx.stroke();
+    }
+  }
+
+  function drawBody(b) {
+    const c = worldToScreen(b.x, b.y), isSel = selection.bodyIds.includes(b.id);
+    ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(-b.angle);
+    ctx.fillStyle = b.fillColor; ctx.strokeStyle = isSel ? '#2563eb' : b.strokeColor; ctx.lineWidth = isSel ? 2.2 : 1.5;
+    if (b.shape === 'point') { ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+    else if (b.shape === 'circle' || b.shape === 'pulley') {
+      const r = b.radius * cam.ppm; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(r, 0); ctx.stroke();
+      if (b.shape === 'pulley') { ctx.beginPath(); ctx.arc(0, 0, r * 0.75, 0, Math.PI * 2); ctx.stroke(); }
+    } else if (b.shape === 'gear') {
+      const r = b.radius * cam.ppm, t = b.teeth || 12;
+      ctx.beginPath();
+      for (let i = 0; i < t; i++) {
+        const a0 = (i / t) * Math.PI * 2, a1 = ((i + 0.25) / t) * Math.PI * 2, a2 = ((i + 0.5) / t) * Math.PI * 2, a3 = ((i + 0.75) / t) * Math.PI * 2;
+        if (i === 0) ctx.moveTo(Math.cos(a0) * r * 0.9, Math.sin(a0) * r * 0.9); else ctx.lineTo(Math.cos(a0) * r * 0.9, Math.sin(a0) * r * 0.9);
+        ctx.lineTo(Math.cos(a1) * r * 1.1, Math.sin(a1) * r * 1.1); ctx.lineTo(Math.cos(a2) * r * 1.1, Math.sin(a2) * r * 1.1); ctx.lineTo(Math.cos(a3) * r * 0.9, Math.sin(a3) * r * 0.9);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.26, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke();
+    } else if (b.shape === 'rect') {
+      const w = b.width * cam.ppm, h = b.height * cam.ppm; ctx.fillRect(-w / 2, -h / 2, w, h); ctx.strokeRect(-w / 2, -h / 2, w, h);
+    } else if (b.shape === 'polygon') {
+      ctx.beginPath(); b.vertices.forEach((v, i) => { if (i === 0) ctx.moveTo(v.x * cam.ppm, -v.y * cam.ppm); else ctx.lineTo(v.x * cam.ppm, -v.y * cam.ppm); });
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    if (b.isStatic) { ctx.strokeStyle = '#334155'; ctx.beginPath(); ctx.moveTo(-4, -4); ctx.lineTo(4, 4); ctx.moveTo(4, -4); ctx.lineTo(-4, 4); ctx.stroke(); }
+    else if (sim.world.showCOM) { ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.moveTo(-6, 0); ctx.lineTo(6, 0); ctx.moveTo(0, -6); ctx.lineTo(0, 6); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  function drawConstraint(c, bMap) {
+    const bA = c.bodyAId ? bMap.get(c.bodyAId) : null, bB = c.bodyBId ? bMap.get(c.bodyBId) : null;
+    const pAW = bA ? localToWorld(bA, c.localA) : c.localA, pBW = bB ? localToWorld(bB, c.localB) : c.localB;
+    const sA = worldToScreen(pAW.x, pAW.y), sB = worldToScreen(pBW.x, pBW.y);
+    const isSel = selection.constraintId === c.id;
+    ctx.save(); ctx.strokeStyle = isSel ? '#2563eb' : c.color; ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = isSel ? 2.4 : 1.6;
+    if (c.kind === 'spring') {
+      const dx = sB.x - sA.x, dy = sB.y - sA.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d, px = -uy, py = ux, lead = Math.min(12, d * 0.15);
+      ctx.beginPath(); ctx.moveTo(sA.x, sA.y); ctx.lineTo(sA.x + ux * lead, sA.y + uy * lead);
+      for (let i = 1; i < 20; i++) { const t = i / 20, side = i % 2 === 0 ? -7 : 7; ctx.lineTo(sA.x + ux * (lead + t * (d - 2 * lead)) + px * side, sA.y + uy * (lead + t * (d - 2 * lead)) + py * side); }
+      ctx.lineTo(sB.x - ux * lead, sB.y - uy * lead); ctx.lineTo(sB.x, sB.y); ctx.stroke();
+    } else if (c.kind === 'rope' && c.pulleyBodyId && bMap.get(c.pulleyBodyId)) {
+      const p = bMap.get(c.pulleyBodyId), cp = worldToScreen(p.x, p.y), rp = p.radius * cam.ppm;
+      ctx.beginPath(); ctx.moveTo(sA.x, sA.y); ctx.lineTo(cp.x - rp, cp.y); ctx.arc(cp.x, cp.y, rp, Math.PI, 0, false); ctx.lineTo(sB.x, sB.y); ctx.stroke();
+    } else if (c.kind === 'pin') {
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(sA.x, sA.y, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    } else if (c.kind === 'slot') {
+      const ang = (bB ? bB.angle : 0) + (c.slotAngle || 0), hl = ((c.slotLength || 3.5) * cam.ppm) / 2;
+      ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(sB.x - Math.cos(-ang) * hl, sB.y - Math.sin(-ang) * hl); ctx.lineTo(sB.x + Math.cos(-ang) * hl, sB.y + Math.sin(-ang) * hl); ctx.stroke();
+      ctx.strokeStyle = isSel ? '#2563eb' : '#0f172a'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(sA.x, sA.y, 4, 0, Math.PI * 2); ctx.stroke();
+    } else if (c.kind === 'force') {
+      drawVec(sA, (c.forceX || 0) * 2, -(c.forceY || 0) * 2, ctx.strokeStyle);
+    } else if (c.kind !== 'motor' && c.kind !== 'torque') {
+      ctx.beginPath(); ctx.moveTo(sA.x, sA.y); ctx.lineTo(sB.x, sB.y); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.arc(sA.x, sA.y, 10, 0, Math.PI * 1.5); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawVec(o, dx, dy, color) {
+    const l = Math.hypot(dx, dy); if (l < 3) return;
+    const cap = Math.min(l, 160), tx = o.x + (dx / l) * cap, ty = o.y + (dy / l) * cap, ang = Math.atan2(dy, dx);
+    ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(tx, ty); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx - 7 * Math.cos(ang - 0.4), ty - 7 * Math.sin(ang - 0.4)); ctx.lineTo(tx - 7 * Math.cos(ang + 0.4), ty - 7 * Math.sin(ang + 0.4)); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  // Meters & Controls Overlay Rendering
+  function sampleMetric(m) {
+    const b = m.bodyId ? sim.bodies.find(x => x.id === m.bodyId) : sim.bodies[0];
+    if (!b) return { v1: 0, v2: 0, v3: 0, labels: ['X', 'Y', ''], unit: '' };
+    if (m.metric === 'position') return { v1: b.x, v2: b.y, v3: (b.angle * 180) / Math.PI, labels: ['X', 'Y', 'θ°'], unit: 'm' };
+    if (m.metric === 'velocity') return { v1: b.vx, v2: b.vy, v3: Math.hypot(b.vx, b.vy), labels: ['Vx', 'Vy', '|V|'], unit: 'm/s' };
+    if (m.metric === 'acceleration') return { v1: b.ax, v2: b.ay, v3: Math.hypot(b.ax, b.ay), labels: ['Ax', 'Ay', '|A|'], unit: 'm/s²' };
+    if (m.metric === 'force') return { v1: b.mass * b.ax, v2: b.mass * b.ay, v3: b.mass * Math.hypot(b.ax, b.ay), labels: ['Fx', 'Fy', '|F|'], unit: 'N' };
+    if (m.metric === 'momentum') return { v1: b.mass * b.vx, v2: b.mass * b.vy, v3: b.mass * Math.hypot(b.vx, b.vy), labels: ['Px', 'Py', '|P|'], unit: 'kg·m/s' };
+    const ke = 0.5 * b.mass * (b.vx * b.vx + b.vy * b.vy) + 0.5 * b.inertia * b.omega * b.omega;
+    const pe = sim.world.gravityMode === 'vertical' ? b.mass * Math.abs(sim.world.gy) * b.y : 0;
+    return { v1: ke, v2: pe, v3: ke + pe, labels: ['KE', 'PE', 'Total'], unit: 'J' };
+  }
+
+  function renderOverlays() {
+    overlayLayer.innerHTML = '';
+    meters.forEach(m => {
+      const s = sampleMetric(m);
+      const win = document.createElement('div');
+      win.className = 'meter-win';
+      win.style.left = m.x + 'px'; win.style.top = m.y + 'px'; win.style.width = (m.width || 255) + 'px';
+      win.innerHTML = `<div class="meter-head"><span>${m.title}</span><div><button class="win-btn" data-mode="graph">G</button><button class="win-btn" data-mode="digital">#</button><button class="win-btn" data-close="1">✕</button></div></div><div class="meter-body" id="mb_${m.id}"></div>`;
+      win.querySelector('[data-close]').onclick = () => { meters = meters.filter(x => x.id !== m.id); renderOverlays(); };
+      win.querySelectorAll('[data-mode]').forEach(btn => btn.onclick = () => { m.displayType = btn.dataset.mode; renderOverlays(); });
+      makeDraggable(win.querySelector('.meter-head'), m);
+      overlayLayer.appendChild(win);
+      updateMeterBody(m, s);
+    });
+    controls.forEach(c => {
+      const val = getCtrlVal(c);
+      const win = document.createElement('div');
+      win.className = 'ctrl-win';
+      win.style.left = c.x + 'px'; win.style.top = c.y + 'px'; win.style.width = '210px';
+      win.innerHTML = `<div class="ctrl-head"><span>${c.label}</span><button class="win-btn">✕</button></div><div style="padding:6px;background:#f8fafc;"><div class="mono" style="display:flex;justify-content:space-between;margin-bottom:3px;"><span>${c.min}</span><strong id="cv_${c.id}">${val.toFixed(2)} ${c.unit || ''}</strong><span>${c.max}</span></div><input type="range" min="${c.min}" max="${c.max}" step="${c.step}" value="${val}" style="width:100%;accent-color:#2563eb;"/></div>`;
+      win.querySelector('.win-btn').onclick = () => { controls = controls.filter(x => x.id !== c.id); renderOverlays(); };
+      win.querySelector('input').oninput = (e) => {
+        const v = parseFloat(e.target.value);
+        setCtrlVal(c, v);
+        document.getElementById(`cv_${c.id}`).textContent = `${v.toFixed(2)} ${c.unit || ''}`;
+      };
+      makeDraggable(win.querySelector('.ctrl-head'), c);
+      overlayLayer.appendChild(win);
+    });
+  }
+
+  function updateMeterBody(m, s) {
+    const el = document.getElementById(`mb_${m.id}`);
+    if (!el) return;
+    if (m.displayType === 'digital') {
+      el.innerHTML = `<div class="mono" style="line-height:1.6;"><div style="color:#2563eb">${s.labels[0]}: ${s.v1.toFixed(2)} ${s.unit}</div><div style="color:#16a34a">${s.labels[1]}: ${s.v2.toFixed(2)} ${s.unit}</div><div style="color:#dc2626">${s.labels[2]}: ${s.v3.toFixed(2)} ${s.unit}</div></div>`;
+    } else {
+      let minV = -1, maxV = 1;
+      if (m.data.length) {
+        minV = Infinity; maxV = -Infinity;
+        m.data.forEach(p => { minV = Math.min(minV, p.v1, p.v2, p.v3); maxV = Math.max(maxV, p.v1, p.v2, p.v3); });
+        if (Math.abs(maxV - minV) < 1e-3) { minV -= 1; maxV += 1; } else { const pad = (maxV - minV) * 0.1; minV -= pad; maxV += pad; }
+      }
+      const w = 235, h = 85;
+      const mk = (fn) => m.data.length < 2 ? '' : m.data.map((d, i) => `${i === 0 ? 'M' : 'L'}${((i / (m.data.length - 1)) * w).toFixed(1)},${(h - ((fn(d) - minV) / (maxV - minV)) * h).toFixed(1)}`).join(' ');
+      el.innerHTML = `<svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" style="background:#f8fafc;border:1px solid #cbd5e1"><path d="${mk(d => d.v1)}" fill="none" stroke="#2563eb" stroke-width="1.5"/><path d="${mk(d => d.v2)}" fill="none" stroke="#16a34a" stroke-width="1.5"/><path d="${mk(d => d.v3)}" fill="none" stroke="#dc2626" stroke-width="1.5"/></svg><div class="mono" style="display:flex;justify-content:space-between;font-size:10px;margin-top:2px;"><span style="color:#2563eb">${s.labels[0]}:${s.v1.toFixed(1)}</span><span style="color:#16a34a">${s.labels[1]}:${s.v2.toFixed(1)}</span><span style="color:#dc2626">${s.labels[2]}:${s.v3.toFixed(1)}</span></div>`;
+    }
+  }
+
+  function makeDraggable(handle, obj) {
+    handle.onpointerdown = (e) => {
+      e.stopPropagation();
+      const sx = e.clientX, sy = e.clientY, ox = obj.x, oy = obj.y;
+      handle.setPointerCapture(e.pointerId);
+      handle.onpointermove = (ev) => { obj.x = Math.max(4, ox + ev.clientX - sx); obj.y = Math.max(4, oy + ev.clientY - sy); handle.parentElement.style.left = obj.x + 'px'; handle.parentElement.style.top = obj.y + 'px'; };
+      handle.onpointerup = () => { handle.onpointermove = null; };
+    };
+  }
+
+  function getCtrlVal(c) {
+    if (c.targetType === 'world') return sim.world[c.property] ?? 0;
+    if (c.targetType === 'body') { const b = sim.bodies.find(x => x.id === c.targetId); return b ? (b[c.property] ?? 0) : 0; }
+    const con = sim.constraints.find(x => x.id === c.targetId); return con ? (con[c.property] ?? 0) : 0;
+  }
+  function setCtrlVal(c, v) {
+    if (c.targetType === 'world') sim.world[c.property] = v;
+    else if (c.targetType === 'body') { const b = sim.bodies.find(x => x.id === c.targetId); if (b) { b[c.property] = v; recalcBody(b); } }
+    else { const con = sim.constraints.find(x => x.id === c.targetId); if (con) con[c.property] = v; }
+  }
+
+  // Properties Panel
+  function renderProperties() {
+    const pb = document.getElementById('propsBody'), pt = document.getElementById('propsTitle');
+    pb.innerHTML = '';
+    const b = selection.bodyIds.length === 1 ? sim.bodies.find(x => x.id === selection.bodyIds[0]) : null;
+    const c = selection.constraintId ? sim.constraints.find(x => x.id === selection.constraintId) : null;
+
+    if (b) {
+      pt.textContent = 'Object Properties';
+      pb.innerHTML = `
+        <div><label class="field-lbl">Name</label><input class="field-inp" id="p_name" value="${b.name}"/></div>
+        <div class="grid-2">
+          <button class="btn-reset" id="p_anchor">${b.isStatic ? '⚓ Anchored' : 'Dynamic'}</button>
+          <label class="check-row"><input type="checkbox" id="p_col" ${b.collidable ? 'checked' : ''}/> Collide</label>
+        </div>
+        <div class="props-sec"><div class="props-sec-title">Kinematics</div><div class="grid-2">
+          <div><label class="field-lbl">X (m)</label><input type="number" step="0.1" class="field-inp mono" id="p_x" value="${b.x.toFixed(2)}"/></div>
+          <div><label class="field-lbl">Y (m)</label><input type="number" step="0.1" class="field-inp mono" id="p_y" value="${b.y.toFixed(2)}"/></div>
+          <div><label class="field-lbl">Vx (m/s)</label><input type="number" step="0.5" class="field-inp mono" id="p_vx" value="${b.vx.toFixed(2)}"/></div>
+          <div><label class="field-lbl">Vy (m/s)</label><input type="number" step="0.5" class="field-inp mono" id="p_vy" value="${b.vy.toFixed(2)}"/></div>
+          <div><label class="field-lbl">Angle (°)</label><input type="number" step="5" class="field-inp mono" id="p_ang" value="${((b.angle * 180) / Math.PI).toFixed(1)}"/></div>
+          <div><label class="field-lbl">ω (rad/s)</label><input type="number" step="0.2" class="field-inp mono" id="p_om" value="${b.omega.toFixed(2)}"/></div>
+        </div></div>
+        <div class="props-sec"><div class="props-sec-title">Material</div><div class="grid-2">
+          <div><label class="field-lbl">Mass (kg)</label><input type="number" step="0.5" min="0.05" class="field-inp mono" id="p_m" value="${b.mass.toFixed(2)}"/></div>
+          <div><label class="field-lbl">Elasticity</label><input type="number" step="0.05" min="0" max="1" class="field-inp mono" id="p_e" value="${b.restitution.toFixed(2)}"/></div>
+          <div><label class="field-lbl">Friction μk</label><input type="number" step="0.05" min="0" class="field-inp mono" id="p_mu" value="${b.kineticFriction.toFixed(2)}"/></div>
+          <div><label class="field-lbl">Fill Color</label><input type="color" id="p_fill" value="${b.fillColor}" style="width:100%;height:24px;"/></div>
+        </div>
+        <label class="check-row"><input type="checkbox" id="p_trk" ${b.trackCOM ? 'checked' : ''}/> Track Path</label></div>`;
+      pb.querySelector('#p_name').onchange = (e) => { b.name = e.target.value; };
+      pb.querySelector('#p_anchor').onclick = () => { b.isStatic = !b.isStatic; recalcBody(b); renderProperties(); };
+      pb.querySelector('#p_col').onchange = (e) => { b.collidable = e.target.checked; };
+      pb.querySelector('#p_x').onchange = (e) => { b.x = parseFloat(e.target.value) || 0; };
+      pb.querySelector('#p_y').onchange = (e) => { b.y = parseFloat(e.target.value) || 0; };
+      pb.querySelector('#p_vx').onchange = (e) => { b.vx = parseFloat(e.target.value) || 0; };
+      pb.querySelector('#p_vy').onchange = (e) => { b.vy = parseFloat(e.target.value) || 0; };
+      pb.querySelector('#p_ang').onchange = (e) => { b.angle = ((parseFloat(e.target.value) || 0) * Math.PI) / 180; };
+      pb.querySelector('#p_om').onchange = (e) => { b.omega = parseFloat(e.target.value) || 0; };
+      pb.querySelector('#p_m').onchange = (e) => { b.mass = Math.max(0.05, parseFloat(e.target.value) || 1); recalcBody(b); };
+      pb.querySelector('#p_e').onchange = (e) => { b.restitution = clamp(parseFloat(e.target.value) || 0, 0, 1); };
+      pb.querySelector('#p_mu').onchange = (e) => { b.kineticFriction = Math.max(0, parseFloat(e.target.value) || 0); };
+      pb.querySelector('#p_fill').oninput = (e) => { b.fillColor = e.target.value; };
+      pb.querySelector('#p_trk').onchange = (e) => { b.trackCOM = e.target.checked; };
+    } else if (c) {
+      pt.textContent = 'Constraint Properties';
+      pb.innerHTML = `<div><label class="field-lbl">Name</label><input class="field-inp" value="${c.name}" id="pc_n"/></div>
+        ${c.kind === 'spring' ? `<div class="grid-2"><div><label class="field-lbl">Stiffness k</label><input type="number" class="field-inp mono" id="pc_k" value="${c.stiffness ?? 50}"/></div><div><label class="field-lbl">Rest L</label><input type="number" step="0.1" class="field-inp mono" id="pc_l" value="${(c.restLength ?? 1.5).toFixed(2)}"/></div></div>` : ''}
+        ${c.kind === 'motor' ? `<div><label class="field-lbl">Speed ω (rad/s)</label><input type="number" step="0.5" class="field-inp mono" id="pc_w" value="${c.motorTargetOmega ?? 3}"/></div>` : ''}`;
+      pb.querySelector('#pc_n').onchange = (e) => { c.name = e.target.value; };
+      if (pb.querySelector('#pc_k')) pb.querySelector('#pc_k').onchange = (e) => { c.stiffness = Math.max(0, parseFloat(e.target.value) || 0); };
+      if (pb.querySelector('#pc_l')) pb.querySelector('#pc_l').onchange = (e) => { c.restLength = Math.max(0.1, parseFloat(e.target.value) || 1); };
+      if (pb.querySelector('#pc_w')) pb.querySelector('#pc_w').onchange = (e) => { c.motorTargetOmega = parseFloat(e.target.value) || 0; };
+    } else {
+      pt.textContent = 'Workspace Properties';
+      pb.innerHTML = `<div class="props-sec" style="border:none;padding:0;"><div class="props-sec-title">Gravity & Air</div><div class="grid-2">
+        <div><label class="field-lbl">Gx (m/s²)</label><input type="number" step="0.5" class="field-inp mono" id="pw_gx" value="${sim.world.gx}"/></div>
+        <div><label class="field-lbl">Gy (m/s²)</label><input type="number" step="0.5" class="field-inp mono" id="pw_gy" value="${sim.world.gy}"/></div>
+      </div><div><label class="field-lbl">Air Resistance</label><input type="number" step="0.02" min="0" class="field-inp mono" id="pw_air" value="${sim.world.airResistance}"/></div></div>`;
+      pb.querySelector('#pw_gx').onchange = (e) => { sim.world.gx = parseFloat(e.target.value) || 0; };
+      pb.querySelector('#pw_gy').onchange = (e) => { sim.world.gy = parseFloat(e.target.value) || 0; };
+      pb.querySelector('#pw_air').onchange = (e) => { sim.world.airResistance = Math.max(0, parseFloat(e.target.value) || 0); };
+    }
+  }
+
+  // Main Animation Loop
+  let accum = 0, uiTick = 0;
+  function frameLoop() {
+    if (isRunning) {
+      const steps = playbackSpeed >= 2 ? 2 : 1;
+      accum += playbackSpeed < 1 ? playbackSpeed : 1;
+      if (accum >= 1) {
+        accum -= 1;
+        for (let i = 0; i < steps; i++) {
+          stepPhysics(sim, dragSpring);
+          tapeFrames.push(captureFrame());
+          if (tapeFrames.length > 1500) tapeFrames.shift();
+          tapeIdx = tapeFrames.length - 1;
+          meters.forEach(m => {
+            const s = sampleMetric(m);
+            m.data.push({ t: sim.time, v1: s.v1, v2: s.v2, v3: s.v3 });
+            if (m.data.length > 180) m.data.shift();
+          });
+        }
+      }
+      if (++uiTick % 3 === 0) {
+        updateTimeTapeUI();
+        meters.forEach(m => updateMeterBody(m, sampleMetric(m)));
+      }
+    }
+    drawScene();
+    requestAnimationFrame(frameLoop);
+  }
+
+  function updateTimeTapeUI() {
+    document.getElementById('lblTime').textContent = `${sim.time.toFixed(sim.world.precision)} s`;
+    document.getElementById('lblFrame').textContent = String(sim.frame);
+    const sc = document.getElementById('tapeScrubber');
+    sc.max = String(Math.max(0, tapeFrames.length - 1));
+    sc.value = String(tapeIdx);
+  }
+
+  // Actions, Menus & Toolbar
+  function loadPresetById(id) {
+    isRunning = false; updateRunBtn();
+    bundle = getPreset(id);
+    sim = JSON.parse(JSON.stringify(bundle.state));
+    initialReset = JSON.parse(JSON.stringify(bundle.state));
+    meters = bundle.meters; controls = bundle.controls;
+    tapeFrames = [captureFrame()]; tapeIdx = 0;
+    undoStack = []; redoStack = [];
+    selection = { bodyIds: [], constraintId: null };
+    document.getElementById('presetSelect').value = id;
+    resizeCanvas(); renderOverlays(); renderProperties(); updateTimeTapeUI();
+  }
+
+  function updateRunBtn() {
+    const btn = document.getElementById('btnRun');
+    btn.classList.toggle('running', isRunning);
+    btn.textContent = isRunning ? '■ Stop' : '▶ Run';
+  }
+
+  function toggleRun() {
+    if (!isRunning && sim.frame === 0) { initialReset = JSON.parse(JSON.stringify(sim)); tapeFrames = [captureFrame()]; }
+    isRunning = !isRunning; updateRunBtn();
+  }
+
+  function doReset() {
+    isRunning = false; updateRunBtn();
+    sim = JSON.parse(JSON.stringify(initialReset));
+    tapeFrames = [captureFrame()]; tapeIdx = 0;
+    meters.forEach(m => { m.data = []; });
+    renderOverlays(); renderProperties(); updateTimeTapeUI();
+  }
+
+  function runAction(act) {
+    if (act === 'new') loadPresetById('blank');
+    else if (act === 'open') document.getElementById('openFileInput').click();
+    else if (act === 'save') {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify({ state: sim, meters, controls }, null, 2)], { type: 'application/json' }));
+      a.download = 'simulation.ipjson'; a.click();
+    } else if (act === 'undo' && undoStack.length) { redoStack.push(JSON.parse(JSON.stringify(sim))); sim = undoStack.pop(); renderProperties(); }
+    else if (act === 'redo' && redoStack.length) { undoStack.push(JSON.parse(JSON.stringify(sim))); sim = redoStack.pop(); renderProperties(); }
+    else if (act === 'delete') {
+      pushUndo();
+      const del = new Set(selection.bodyIds);
+      sim.bodies = sim.bodies.filter(b => !del.has(b.id));
+      sim.constraints = sim.constraints.filter(c => c.id !== selection.constraintId && !(c.bodyAId && del.has(c.bodyAId)) && !(c.bodyBId && del.has(c.bodyBId)));
+      selection = { bodyIds: [], constraintId: null }; renderProperties();
+    } else if (act === 'duplicate' && selection.bodyIds.length) {
+      pushUndo();
+      const newIds = [];
+      sim.bodies.filter(b => selection.bodyIds.includes(b.id)).forEach(b => {
+        const c = JSON.parse(JSON.stringify(b)); c.id = nextId('b'); c.x += 0.5; c.y -= 0.5; c.tracePoints = [];
+        sim.bodies.push(c); newIds.push(c.id);
+      });
+      selection = { bodyIds: newIds, constraintId: null }; renderProperties();
+    } else if (act === 'selectAll') { selection = { bodyIds: sim.bodies.map(b => b.id), constraintId: null }; }
+    else if (act === 'clearTracks') { sim.bodies.forEach(b => b.tracePoints = []); }
+    else if (act === 'toggleGrid') { sim.world.showGrid = !sim.world.showGrid; document.getElementById('btnGrid').classList.toggle('active', sim.world.showGrid); }
+    else if (act === 'toggleSnap') { sim.world.snapToGrid = !sim.world.snapToGrid; document.getElementById('btnSnap').classList.toggle('active', sim.world.snapToGrid); }
+    else if (act === 'toggleRulers') { sim.world.showRulers = !sim.world.showRulers; resizeCanvas(); }
+    else if (act === 'toggleAxes') { sim.world.showAxes = !sim.world.showAxes; }
+    else if (act === 'zoomIn') { cam.ppm = clamp(cam.ppm * 1.2, 12, 240); renderRulers(); }
+    else if (act === 'zoomOut') { cam.ppm = clamp(cam.ppm * 0.83, 12, 240); renderRulers(); }
+    else if (act === 'zoomReset') { cam = { panX: 0, panY: 0, ppm: 55 }; renderRulers(); }
+    else if (act === 'toggleProps') { document.getElementById('propsPanel').classList.toggle('hidden'); resizeCanvas(); }
+    else if (act === 'toggleVectors') { const on = !(sim.world.showVectors.velocity || sim.world.showVectors.force); sim.world.showVectors.velocity = on; sim.world.showVectors.force = on; document.getElementById('btnVectors').classList.toggle('active', on); }
+    else if (act === 'vecVel') sim.world.showVectors.velocity = !sim.world.showVectors.velocity;
+    else if (act === 'vecAcc') sim.world.showVectors.acceleration = !sim.world.showVectors.acceleration;
+    else if (act === 'vecForce') sim.world.showVectors.force = !sim.world.showVectors.force;
+    else if (act === 'toggleElectro') sim.world.electrostaticsEnabled = !sim.world.electrostaticsEnabled;
+    else if (act === 'toggleAnchor') { sim.bodies.filter(b => selection.bodyIds.includes(b.id)).forEach(b => { b.isStatic = !b.isStatic; recalcBody(b); }); renderProperties(); }
+    else if (act === 'toggleCollide') { sim.bodies.filter(b => selection.bodyIds.includes(b.id)).forEach(b => { b.collidable = !b.collidable; }); renderProperties(); }
+    else if (act === 'meshGears') {
+      const gs = sim.bodies.filter(b => b.shape === 'gear');
+      for (let i = 0; i < gs.length; i++) for (let j = i + 1; j < gs.length; j++) {
+        if (vLen(vSub(gs[i], gs[j])) <= (gs[i].radius + gs[j].radius) * 1.25)
+          sim.constraints.push({ id: nextId('mesh'), name: 'Gear Mesh', kind: 'gearMesh', bodyAId: gs[i].id, bodyBId: gs[j].id, localA: { x: 0, y: 0 }, localB: { x: 0, y: 0 }, enabled: true, color: '#475569' });
+      }
+    } else if (act === 'clearMeters') { meters = []; renderOverlays(); }
+    else if (act === 'tileMeters') { meters.forEach((m, i) => { m.x = 16 + (i % 3) * 265; m.y = 16 + Math.floor(i / 3) * 165; }); renderOverlays(); }
+  }
+
+  function openDialog(kind) {
+    const bd = document.getElementById('modalBackdrop'), mc = document.getElementById('modalContent'), mt = document.getElementById('modalTitle');
+    mc.innerHTML = ''; bd.classList.add('open');
+    if (kind === 'gravity') {
+      mt.textContent = 'World Gravity';
+      mc.innerHTML = `<div><label class="field-lbl">Gravity Y (m/s²)</label><input type="number" step="0.1" id="dg_gy" class="field-inp mono" value="${sim.world.gy}"/></div>
+        <div style="display:flex;gap:6px;"><button class="btn-reset" data-g="-9.81">Earth (-9.81)</button><button class="btn-reset" data-g="-1.62">Moon (-1.62)</button><button class="btn-reset" data-g="0">Zero-G (0)</button></div>`;
+      mc.querySelector('#dg_gy').onchange = (e) => { sim.world.gy = parseFloat(e.target.value) || 0; renderProperties(); };
+      mc.querySelectorAll('[data-g]').forEach(btn => btn.onclick = () => { sim.world.gy = parseFloat(btn.dataset.g); mc.querySelector('#dg_gy').value = sim.world.gy; renderProperties(); });
+    } else if (kind === 'air') {
+      mt.textContent = 'Air Resistance';
+      mc.innerHTML = `<div><label class="field-lbl">Drag Coefficient</label><input type="number" step="0.01" min="0" id="da_r" class="field-inp mono" value="${sim.world.airResistance}"/></div>`;
+      mc.querySelector('#da_r').onchange = (e) => { sim.world.airResistance = Math.max(0, parseFloat(e.target.value) || 0); renderProperties(); };
+    } else if (kind === 'accuracy') {
+      mt.textContent = 'Simulation Accuracy';
+      mc.innerHTML = `<div class="grid-2"><div><label class="field-lbl">Substeps</label><input type="number" min="1" max="20" id="dac_s" class="field-inp mono" value="${sim.world.substeps}"/></div><div><label class="field-lbl">Solver Iterations</label><input type="number" min="2" max="40" id="dac_i" class="field-inp mono" value="${sim.world.solverIterations}"/></div></div>`;
+      mc.querySelector('#dac_s').onchange = (e) => { sim.world.substeps = clamp(parseInt(e.target.value, 10) || 6, 1, 20); };
+      mc.querySelector('#dac_i').onchange = (e) => { sim.world.solverIterations = clamp(parseInt(e.target.value, 10) || 10, 2, 40); };
+    } else if (kind === 'newControl') {
+      mt.textContent = 'New Gravity Control Slider';
+      controls.push({ id: nextId('c'), label: 'Gravity Y', targetType: 'world', targetId: null, property: 'gy', min: -20, max: 0, step: 0.2, unit: 'm/s²', x: 24, y: 24 });
+      renderOverlays(); bd.classList.remove('open');
+    } else if (kind === 'help') {
+      mt.textContent = 'Interactive Physics Guide';
+      mc.innerHTML = `<p><strong>Run/Stop:</strong> Spacebar or click ▶ Run.</p><p><strong>Live Grab:</strong> Grab and fling objects with the Select tool while running.</p><p><strong>Pulleys & Ropes:</strong> Draw a Rope over a Pulley to automatically wrap it.</p>`;
+    }
+  }
+  document.getElementById('modalCloseBtn').onclick = () => document.getElementById('modalBackdrop').classList.remove('open');
+  document.getElementById('modalOkBtn').onclick = () => document.getElementById('modalBackdrop').classList.remove('open');
+
+  // Menu dropdown toggling
+  let openMenu = null;
+  function closeMenus() { openMenu = null; document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('open')); document.querySelectorAll('.menu-dropdown').forEach(d => d.classList.remove('open')); }
+  document.querySelectorAll('.menu-btn').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const k = btn.dataset.menu;
+      if (openMenu === k) closeMenus();
+      else { closeMenus(); openMenu = k; btn.classList.add('open'); document.getElementById(`menu-${k}`).classList.add('open'); }
+    };
+  });
+  window.addEventListener('pointerdown', (e) => { if (!e.target.closest('#menuBar')) closeMenus(); });
+  document.querySelectorAll('[data-act]').forEach(el => el.onclick = () => { closeMenus(); runAction(el.dataset.act); });
+  document.querySelectorAll('[data-preset]').forEach(el => el.onclick = () => { closeMenus(); loadPresetById(el.dataset.preset); });
+  document.querySelectorAll('[data-dialog]').forEach(el => el.onclick = () => { closeMenus(); openDialog(el.dataset.dialog); });
+  document.querySelectorAll('[data-meter]').forEach(el => el.onclick = () => {
+    closeMenus();
+    const b = sim.bodies.find(x => x.id === selection.bodyIds[0]) || sim.bodies[0];
+    meters.push({ id: nextId('m'), title: `${b ? b.name : ''} ${el.dataset.meter}`, bodyId: b ? b.id : null, metric: el.dataset.meter, displayType: 'graph', x: 20 + meters.length * 22, y: 20 + meters.length * 22, width: 255, data: [] });
+    renderOverlays();
+  });
+
+  document.getElementById('btnRun').onclick = toggleRun;
+  document.getElementById('btnReset').onclick = doReset;
+  document.getElementById('btnStepFwd').onclick = () => { if (!isRunning) { stepPhysics(sim, null); tapeFrames.push(captureFrame()); tapeIdx = tapeFrames.length - 1; updateTimeTapeUI(); } };
+  document.getElementById('btnStepBack').onclick = () => { if (!isRunning && tapeIdx > 0) { restoreFrame(tapeFrames[--tapeIdx]); updateTimeTapeUI(); } };
+  document.getElementById('tapeBack').onclick = () => document.getElementById('btnStepBack').click();
+  document.getElementById('tapeFwd').onclick = () => document.getElementById('btnStepFwd').click();
+  document.getElementById('tapeStart').onclick = () => { if (!isRunning && tapeFrames.length) { tapeIdx = 0; restoreFrame(tapeFrames[0]); updateTimeTapeUI(); } };
+  document.getElementById('tapeEnd').onclick = () => { if (!isRunning && tapeFrames.length) { tapeIdx = tapeFrames.length - 1; restoreFrame(tapeFrames[tapeIdx]); updateTimeTapeUI(); } };
+  document.getElementById('tapeScrubber').oninput = (e) => { if (!isRunning) { tapeIdx = parseInt(e.target.value, 10); restoreFrame(tapeFrames[tapeIdx]); updateTimeTapeUI(); } };
+  document.getElementById('speedSelect').onchange = (e) => { playbackSpeed = parseFloat(e.target.value); };
+  document.getElementById('presetSelect').onchange = (e) => loadPresetById(e.target.value);
+  document.getElementById('btnDelSel').onclick = () => runAction('delete');
+  document.getElementById('btnDupSel').onclick = () => runAction('duplicate');
+  document.getElementById('openFileInput').onchange = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const p = JSON.parse(String(r.result));
+        if (p && p.state) { sim = p.state; initialReset = JSON.parse(JSON.stringify(p.state)); meters = p.meters || []; controls = p.controls || []; tapeFrames = [captureFrame()]; tapeIdx = 0; renderOverlays(); renderProperties(); updateTimeTapeUI(); }
+      } catch {}
+    };
+    r.readAsText(f);
+  };
+  window.addEventListener('keydown', (e) => {
+    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
+    if (e.code === 'Space') { e.preventDefault(); toggleRun(); }
+    else if (e.key === 'Delete') runAction('delete');
+    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); runAction('undo'); }
+    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); runAction('redo'); }
+  });
+
+  // Boot
+  resizeCanvas();
+  renderOverlays();
+  renderProperties();
+  updateTimeTapeUI();
+  requestAnimationFrame(frameLoop);
+})();
+</script>
+</body>
+</html>
